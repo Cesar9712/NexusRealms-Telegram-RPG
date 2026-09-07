@@ -8,7 +8,7 @@ import {
   Coins,
   Crown,
   Gem,
-  Map,
+  Map as MapIcon,
   ScrollText,
   Shield,
   Sparkles,
@@ -124,7 +124,10 @@ export function GameHome() {
       .catch(() => setStatus('error'));
   }, []);
 
-  const resourceMap = useMemo(() => new Map(snapshot?.resources.map((r) => [r.resource_code, Number(r.amount)]) ?? []), [snapshot]);
+  const resourceMap = useMemo(
+    () => new globalThis.Map(snapshot?.resources.map((r) => [r.resource_code, Number(r.amount)]) ?? []),
+    [snapshot],
+  );
 
   async function travelTo(realmId: string) {
     const token = sessionStorage.getItem('nr_session');
@@ -216,7 +219,7 @@ export function GameHome() {
           <p>Tu progreso global permanece intacto al viajar. El siguiente umbral está abierto desde nivel 6.</p>
         </div>
         <button disabled={travelBusy || c.current_realm_id === 'cursed-grove'} onClick={() => travelTo('cursed-grove')}>
-          <Map size={18} /> {c.current_realm_id === 'cursed-grove' ? 'Bosque Maldito activo' : travelBusy ? 'Abriendo portal…' : 'Viajar al Bosque Maldito'}
+          <MapIcon size={18} /> {c.current_realm_id === 'cursed-grove' ? 'Bosque Maldito activo' : travelBusy ? 'Abriendo portal…' : 'Viajar al Bosque Maldito'}
         </button>
       </section>
 
