@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import './creation.css';
 import './modules.css';
+import './admin.css';
 
 export const metadata: Metadata = {
   title: 'Nexus Realms: Telegram Legends',
