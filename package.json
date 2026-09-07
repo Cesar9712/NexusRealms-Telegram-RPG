@@ -1,0 +1,15 @@
+{
+  "name": "nexusrealms-telegram-rpg",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.15.1",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev:bot": "pnpm --filter @nexusrealms/bot dev",
+    "dev:miniapp": "pnpm --filter @nexusrealms/miniapp dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck"
+  }
+}
