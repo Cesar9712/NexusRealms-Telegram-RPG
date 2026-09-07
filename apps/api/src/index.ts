@@ -5,6 +5,7 @@ import postgres from 'postgres';
 import { z } from 'zod';
 import { verifyTelegramInitData } from './telegram.js';
 import { registerGameplayRoutes } from './gameplayRoutes.js';
+import { registerSocialRoutes } from './socialRoutes.js';
 
 const EnvSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().min(20),
@@ -278,6 +279,7 @@ app.post('/v1/realms/:realmId/travel', async (c) => {
 });
 
 registerGameplayRoutes(app, sql, requirePlayerId, buildSnapshot);
+registerSocialRoutes(app, sql, requirePlayerId);
 
 serve({ fetch: app.fetch, port: env.API_PORT }, (info) => {
   console.log(`Nexus Realms API listening on :${info.port}`);
