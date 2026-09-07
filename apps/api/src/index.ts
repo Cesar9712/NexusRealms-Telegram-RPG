@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import postgres from 'postgres';
 import { z } from 'zod';
 import { verifyTelegramInitData } from './telegram.js';
+import { registerGameplayRoutes } from './gameplayRoutes.js';
 
 const EnvSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().min(20),
@@ -55,6 +56,8 @@ async function requirePlayerId(authorization?: string) {
   const token = authorization.slice(7);
   const { payload } = await jwtVerify(token, sessionKey, { algorithms: ['HS256'] });
   if (!payload.sub) throw new Error('UNAUTHORIZED');
+  const [player] = await sql`select id,is_banned from game.players where id=${payload.sub}`;
+  if (!player || player.is_banned) throw new Error('UNAUTHORIZED');
   return payload.sub;
 }
 
@@ -112,9 +115,9 @@ app.post('/v1/auth/telegram', async (c) => {
           avatar_url = excluded.avatar_url,
           locale = excluded.locale,
           updated_at = now()
-      returning id, telegram_user_id
+      returning id, telegram_user_id, is_banned
     `;
-    if (!player) throw new Error('PLAYER_UPSERT_FAILED');
+    if (!player || player.is_banned) throw new Error('PLAYER_BLOCKED');
 
     await tx`insert into game.earn_balances (player_id) values (${player.id}) on conflict do nothing`;
     await tx`
@@ -136,8 +139,9 @@ app.post('/v1/auth/telegram', async (c) => {
     }
 
     return { playerId: String(player.id), telegramUserId: Number(player.telegram_user_id) };
-  });
+  }).catch((error: Error) => ({ error: error.message }));
 
+  if ('error' in result) return c.json({ error: result.error }, 403);
   const token = await issueSession(result.playerId, result.telegramUserId);
   return c.json({ token, snapshot: await buildSnapshot(result.playerId) });
 });
@@ -158,11 +162,8 @@ app.get('/v1/classes', async (c) => {
 
 app.post('/v1/characters', async (c) => {
   let playerId: string;
-  try {
-    playerId = await requirePlayerId(c.req.header('authorization'));
-  } catch {
-    return c.json({ error: 'UNAUTHORIZED' }, 401);
-  }
+  try { playerId = await requirePlayerId(c.req.header('authorization')); }
+  catch { return c.json({ error: 'UNAUTHORIZED' }, 401); }
 
   const idempotencyKey = c.req.header('idempotency-key');
   if (!idempotencyKey || idempotencyKey.length > 120) return c.json({ error: 'IDEMPOTENCY_KEY_REQUIRED' }, 400);
@@ -209,9 +210,14 @@ app.post('/v1/characters', async (c) => {
         (${character.id}, 'gold', 250),
         (${character.id}, 'crystals', 0),
         (${character.id}, 'premium_credits', 0),
-        (${character.id}, 'clan_coins', 0)
+        (${character.id}, 'clan_coins', 0),
+        (${character.id}, 'ore', 8),
+        (${character.id}, 'herbs', 8),
+        (${character.id}, 'wood', 8),
+        (${character.id}, 'fish', 4),
+        (${character.id}, 'arcane_dust', 2)
     `;
-    for (const building of ['fortress','forge','laboratory','garden','mine','pond','warehouse','market','altar']) {
+    for (const building of ['fortress','forge','laboratory','garden','mine','pond','warehouse','market','altar','barracks','arcane-tower','workshop','portal','hall-of-heroes']) {
       await tx`insert into game.bastion_buildings (character_id, building_code) values (${character.id}, ${building})`;
     }
     const response = { characterId: String(character.id), classId: String(classRow.id) };
@@ -228,11 +234,8 @@ app.post('/v1/characters', async (c) => {
 
 app.post('/v1/realms/:realmId/travel', async (c) => {
   let playerId: string;
-  try {
-    playerId = await requirePlayerId(c.req.header('authorization'));
-  } catch {
-    return c.json({ error: 'UNAUTHORIZED' }, 401);
-  }
+  try { playerId = await requirePlayerId(c.req.header('authorization')); }
+  catch { return c.json({ error: 'UNAUTHORIZED' }, 401); }
 
   const realmId = c.req.param('realmId');
   const idempotencyKey = c.req.header('idempotency-key');
@@ -273,6 +276,8 @@ app.post('/v1/realms/:realmId/travel', async (c) => {
 
   return c.json({ ...outcome.response, duplicate: outcome.duplicate, snapshot: await buildSnapshot(playerId) });
 });
+
+registerGameplayRoutes(app, sql, requirePlayerId, buildSnapshot);
 
 serve({ fetch: app.fetch, port: env.API_PORT }, (info) => {
   console.log(`Nexus Realms API listening on :${info.port}`);
