@@ -5,8 +5,17 @@ services:
     plan: free
     branch: main
     buildCommand: corepack enable && corepack prepare pnpm@10.15.1 --activate && pnpm install --no-frozen-lockfile && pnpm --filter @nexusrealms/api build
-    startCommand: pnpm --filter @nexusrealms/api start
+    startCommand: pnpm --filter @nexusrealms/api migrate && pnpm --filter @nexusrealms/api start
     healthCheckPath: /health
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: TELEGRAM_INIT_DATA_MAX_AGE_SECONDS
+        value: "300"
 
   - type: web
     name: nexus-legends-miniapp
@@ -15,14 +24,33 @@ services:
     branch: main
     buildCommand: corepack enable && corepack prepare pnpm@10.15.1 --activate && pnpm install --no-frozen-lockfile && pnpm --filter @nexusrealms/miniapp build
     startCommand: pnpm --filter @nexusrealms/miniapp start
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          type: web
+          name: nexus-legends-api
+          envVarKey: RENDER_EXTERNAL_URL
 
   - type: worker
     name: nexus-legends-worker
     runtime: node
     plan: free
     branch: main
-    buildCommand: corepack enable && corepack prepare pnpm@10.15.1 --activate && pnpm install --no-frozen-lockfile && pnpm --filter @nexusrealms/worker build
-    startCommand: pnpm --filter @nexusrealms/worker start
+    buildCommand: corepack enable && corepack prepare pnpm@10.15.1 --activate && pnpm install --no-frozen-lockfile && pnpm --filter @nexusrealms/api build && pnpm --filter @nexusrealms/worker build
+    startCommand: pnpm --filter @nexusrealms/api migrate && pnpm --filter @nexusrealms/worker start
+    envVars:
+      - key: DATABASE_URL
+        fromService:
+          type: web
+          name: nexus-legends-api
+          envVarKey: DATABASE_URL
+      - key: TELEGRAM_BOT_TOKEN
+        fromService:
+          type: web
+          name: nexus-legends-api
+          envVarKey: TELEGRAM_BOT_TOKEN
+      - key: WORKER_INTERVAL_SECONDS
+        value: "60"
 
   - type: web
     name: nexus-legends-bot
@@ -31,3 +59,19 @@ services:
     branch: main
     buildCommand: corepack enable && corepack prepare pnpm@10.15.1 --activate && pnpm install --no-frozen-lockfile && pnpm --filter @nexusrealms/bot build
     startCommand: pnpm --filter @nexusrealms/bot start
+    healthCheckPath: /health
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        fromService:
+          type: web
+          name: nexus-legends-api
+          envVarKey: TELEGRAM_BOT_TOKEN
+      - key: TELEGRAM_WEBAPP_URL
+        fromService:
+          type: web
+          name: nexus-legends-miniapp
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: TELEGRAM_WEBHOOK_SECRET
+        generateValue: true
+      - key: NODE_ENV
+        value: production
