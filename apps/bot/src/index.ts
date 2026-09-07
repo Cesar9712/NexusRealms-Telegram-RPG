@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { createHash } from 'node:crypto';
 import { serve } from '@hono/node-server';
 import { Bot, InlineKeyboard, webhookCallback } from 'grammy';
 import { Hono } from 'hono';
@@ -7,12 +8,15 @@ import { z } from 'zod';
 const env = z.object({
   TELEGRAM_BOT_TOKEN: z.string().min(20),
   TELEGRAM_WEBAPP_URL: z.string().url(),
-  TELEGRAM_WEBHOOK_SECRET: z.string().min(16).optional(),
   BOT_PUBLIC_URL: z.string().url().optional(),
   BOT_PORT: z.coerce.number().int().positive().default(3000),
   PORT: z.coerce.number().int().positive().optional(),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 }).parse(process.env);
+
+const webhookSecret = createHash('sha256')
+  .update(`nexus-realms-webhook:${env.TELEGRAM_BOT_TOKEN}`)
+  .digest('hex');
 
 const bot = new Bot(env.TELEGRAM_BOT_TOKEN);
 const rateBuckets = new Map<number, { count: number; resetAt: number }>();
@@ -86,7 +90,7 @@ const app = new Hono();
 app.get('/health', (c) => c.json({ ok: true, service: 'nexusrealms-bot', serverTime: new Date().toISOString() }));
 const telegramWebhook = webhookCallback(bot, 'hono');
 app.post('/telegram/webhook', async (c) => {
-  if (env.TELEGRAM_WEBHOOK_SECRET && c.req.header('x-telegram-bot-api-secret-token') !== env.TELEGRAM_WEBHOOK_SECRET) {
+  if (c.req.header('x-telegram-bot-api-secret-token') !== webhookSecret) {
     return c.text('Forbidden', 403);
   }
   return telegramWebhook(c);
@@ -105,7 +109,7 @@ async function configureBot() {
 
   if (env.NODE_ENV === 'production' && env.BOT_PUBLIC_URL) {
     const webhookUrl = `${env.BOT_PUBLIC_URL.replace(/\/$/, '')}/telegram/webhook`;
-    await bot.api.setWebhook(webhookUrl, env.TELEGRAM_WEBHOOK_SECRET ? { secret_token: env.TELEGRAM_WEBHOOK_SECRET } : undefined);
+    await bot.api.setWebhook(webhookUrl, { secret_token: webhookSecret });
     console.log(`Telegram webhook configured: ${webhookUrl}`);
   }
 }
