@@ -28,6 +28,7 @@ jobs:
           --health-retries 10
     env:
       TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/nexus_test
+      MIGRATION_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/nexus_migrate_test
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -54,6 +55,13 @@ jobs:
           psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f database/tests/realm_persistence.sql
           psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f database/tests/double_tap.sql
           psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f database/tests/timer_authority.sql
+      - name: Production migration runner smoke test
+        run: |
+          createdb -h localhost -U postgres nexus_migrate_test
+          pnpm --filter @nexusrealms/api build
+          DATABASE_URL="$MIGRATION_TEST_DATABASE_URL" pnpm --filter @nexusrealms/api migrate
+          psql "$MIGRATION_TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f database/tests/content_minimums.sql
+          psql "$MIGRATION_TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f database/tests/system_minimums.sql
       - name: Typecheck
         run: pnpm typecheck
       - name: Tests
