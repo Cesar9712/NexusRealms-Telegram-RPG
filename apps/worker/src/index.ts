@@ -1,7 +1,13 @@
+import { createServer } from 'node:http';
 import postgres from 'postgres';
 import { z } from 'zod';
 
-const Env=z.object({DATABASE_URL:z.string().min(1),TELEGRAM_BOT_TOKEN:z.string().min(20),WORKER_INTERVAL_SECONDS:z.coerce.number().int().min(30).default(60)}).parse(process.env);
+const Env=z.object({
+  DATABASE_URL:z.string().min(1),
+  TELEGRAM_BOT_TOKEN:z.string().min(20),
+  WORKER_INTERVAL_SECONDS:z.coerce.number().int().min(30).default(60),
+  PORT:z.coerce.number().int().positive().default(3002),
+}).parse(process.env);
 const sql=postgres(Env.DATABASE_URL,{max:4,idle_timeout:20});
 const owner=`worker-${process.pid}`;
 
@@ -42,4 +48,15 @@ async function deliverNotifications(){
 
 async function run(){if(!(await lease('main-loop',Math.max(90,Env.WORKER_INTERVAL_SECONDS*2))))return;const [job]=await sql`insert into game.job_runs(job_name) values('main-loop') returning id`;try{await materializeDueNotifications();await refreshRankings();await deliverNotifications();await sql`update game.job_runs set status='success',finished_at=now() where id=${job.id}`;}catch(error){console.error(error);await sql`update game.job_runs set status='failed',finished_at=now(),details=${sql.json({error:error instanceof Error?error.message:String(error)})} where id=${job.id}`;}}
 
-void run();setInterval(()=>void run(),Env.WORKER_INTERVAL_SECONDS*1000);
+createServer((req,res)=>{
+  if(req.url==='/health'){
+    res.writeHead(200,{'content-type':'application/json'});
+    res.end(JSON.stringify({ok:true,service:'nexusrealms-worker',serverTime:new Date().toISOString()}));
+    return;
+  }
+  res.writeHead(404,{'content-type':'application/json'});
+  res.end(JSON.stringify({error:'NOT_FOUND'}));
+}).listen(Env.PORT,'0.0.0.0',()=>console.log(`Worker health server listening on :${Env.PORT}`));
+
+void run();
+setInterval(()=>void run(),Env.WORKER_INTERVAL_SECONDS*1000);
