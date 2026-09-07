@@ -18,8 +18,9 @@ import {
   Zap,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { CharacterCreation } from './CharacterCreation';
 
-type Snapshot = {
+export type Snapshot = {
   serverTime: string;
   player: { display_name: string; username?: string | null };
   character: {
@@ -35,7 +36,8 @@ type Snapshot = {
     energy: number;
     energy_max: number;
     power: number;
-  };
+    appearance?: Record<string, unknown>;
+  } | null;
   clan: { name: string; tag: string; role: string } | null;
   battlePass: { level: number; xp: number; premium_unlocked: boolean } | null;
   referral: { referral_code: string } | null;
@@ -59,6 +61,18 @@ declare global {
 }
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+
+const realmLabels: Record<string, { name: string; description: string }> = {
+  'ashen-frontier': { name: 'Frontera de Ceniza', description: 'Las ruinas del Nexo despiertan. Una brecha arcana consume los bosques del este.' },
+  'cursed-grove': { name: 'Bosque Maldito', description: 'Raíces corruptas y espíritus antiguos custodian secretos bajo una luna violeta.' },
+  ironpeaks: { name: 'Montañas de Hierro', description: 'Forjas orcas, minas profundas y fortalezas talladas en piedra ardiente.' },
+  'spectral-marsh': { name: 'Pantano Espectral', description: 'Niebla venenosa y almas perdidas dominan las aguas inmóviles.' },
+  'crimson-wastes': { name: 'Desierto Carmesí', description: 'Ruinas enterradas y bestias ancestrales emergen entre tormentas rojas.' },
+  frostbound: { name: 'Tierras Heladas', description: 'Gigantes, elementales y ventiscas protegen las puertas del norte.' },
+  abyss: { name: 'El Abismo', description: 'Demonios y pactos prohibidos esperan bajo el mundo conocido.' },
+  celestial: { name: 'Reino Celestial', description: 'Templos suspendidos y guardianes arcanos desafían a los héroes veteranos.' },
+  chaos: { name: 'Reino del Caos', description: 'El endgame del Nexo: realidad fracturada, jefes extremos y poder impredecible.' },
+};
 
 const previewSnapshot: Snapshot = {
   serverTime: new Date().toISOString(),
@@ -136,14 +150,11 @@ export function GameHome() {
     try {
       const response = await fetch(`${apiUrl}/v1/realms/${realmId}/travel`, {
         method: 'POST',
-        headers: {
-          authorization: `Bearer ${token}`,
-          'idempotency-key': crypto.randomUUID(),
-        },
+        headers: { authorization: `Bearer ${token}`, 'idempotency-key': crypto.randomUUID() },
       });
       if (!response.ok) throw new Error('TRAVEL_FAILED');
       const data = await response.json();
-      setSnapshot(data.snapshot);
+      setSnapshot(data.snapshot as Snapshot);
     } finally {
       setTravelBusy(false);
     }
@@ -159,7 +170,12 @@ export function GameHome() {
     );
   }
 
+  if (!snapshot.character) {
+    return <CharacterCreation onCreated={setSnapshot} />;
+  }
+
   const c = snapshot.character;
+  const realm = realmLabels[c.current_realm_id] ?? { name: c.current_realm_id, description: 'Una región desconocida del Nexo espera ser explorada.' };
 
   return (
     <main className="game-shell">
@@ -180,17 +196,14 @@ export function GameHome() {
         <div className="vital-row"><span><Zap size={13} /> EN</span><div className="track"><i className="energy" style={{ width: meter(c.energy, c.energy_max) }} /></div><b>{c.energy}/{c.energy_max}</b></div>
       </section>
 
-      <section className="realm-hero">
+      <section className={`realm-hero realm-${c.current_realm_id}`}>
         <div className="rune-orbit"><span /><span /><span /></div>
         <div className="realm-copy">
           <span className="eyebrow">REINO ACTUAL</span>
-          <h1>Frontera de Ceniza</h1>
-          <p>Las ruinas del Nexo despiertan. Una brecha arcana consume los bosques del este.</p>
+          <h1>{realm.name}</h1>
+          <p>{realm.description}</p>
         </div>
-        <div className="hero-silhouette">
-          <div className="blade" />
-          <div className="cape" />
-        </div>
+        <div className="hero-silhouette"><div className="blade" /><div className="cape" /></div>
         <button className="primary-cta" onClick={() => setActiveNav('adventure')}>
           <Swords size={19} /> CONTINUAR AVENTURA <ChevronRight size={18} />
         </button>
@@ -205,7 +218,7 @@ export function GameHome() {
       <section className="section-block">
         <div className="section-title"><div><span className="eyebrow">PROGRESIÓN</span><h2>Tu leyenda</h2></div><Trophy size={20} /></div>
         <div className="feature-grid">
-          <button className="feature-card" onClick={() => setActiveNav('bastion')}><Castle /><span><b>Bastión</b><small>Fortaleza Nv. 1</small></span><ChevronRight /></button>
+          <button className="feature-card" onClick={() => setActiveNav('bastion')}><Castle /><span><b>Bastión</b><small>Base personal persistente</small></span><ChevronRight /></button>
           <button className="feature-card" onClick={() => setActiveNav('clan')}><Users /><span><b>{snapshot.clan?.tag ? `[${snapshot.clan.tag}] ${snapshot.clan.name}` : 'Clan'}</b><small>{snapshot.clan ? 'Base y raid disponibles' : 'Encuentra aliados'}</small></span><ChevronRight /></button>
           <button className="feature-card" onClick={() => setActiveNav('inventory')}><Backpack /><span><b>Inventario</b><small>{snapshot.inventoryCount} objetos</small></span><ChevronRight /></button>
           <button className="feature-card" onClick={() => setActiveNav('quests')}><ScrollText /><span><b>Misiones</b><small>Historia · Diarias · Clan</small></span><ChevronRight /></button>
@@ -216,7 +229,7 @@ export function GameHome() {
         <div>
           <span className="eyebrow">MAPA DEL NEXO</span>
           <h2>Reinos conectados</h2>
-          <p>Tu progreso global permanece intacto al viajar. El siguiente umbral está abierto desde nivel 6.</p>
+          <p>El reino actual cambia sin tocar clan, Earn, Battle Pass, referidos, equipo ni recursos.</p>
         </div>
         <button disabled={travelBusy || c.current_realm_id === 'cursed-grove'} onClick={() => travelTo('cursed-grove')}>
           <MapIcon size={18} /> {c.current_realm_id === 'cursed-grove' ? 'Bosque Maldito activo' : travelBusy ? 'Abriendo portal…' : 'Viajar al Bosque Maldito'}
