@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { CharacterCreation } from './CharacterCreation';
+import { GameModulePanel } from './GameModulePanel';
 
 export type Snapshot = {
   serverTime: string;
@@ -236,7 +237,7 @@ export function GameHome() {
         </button>
       </section>
 
-      <div className="active-drawer">{activeNav === 'home' ? 'Nexo sincronizado' : `Módulo seleccionado: ${activeNav}`}</div>
+      <GameModulePanel active={activeNav} snapshot={snapshot} onClose={()=>setActiveNav('home')} onSnapshot={setSnapshot}/>
 
       <nav className="bottom-nav" aria-label="Navegación principal">
         <button className={activeNav === 'home' ? 'active' : ''} onClick={() => setActiveNav('home')}><Shield /><span>Inicio</span></button>
