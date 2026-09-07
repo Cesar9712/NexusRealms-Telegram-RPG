@@ -8,7 +8,9 @@ const env = z.object({
   TELEGRAM_BOT_TOKEN: z.string().min(20),
   TELEGRAM_WEBAPP_URL: z.string().url(),
   TELEGRAM_WEBHOOK_SECRET: z.string().min(16).optional(),
+  BOT_PUBLIC_URL: z.string().url().optional(),
   BOT_PORT: z.coerce.number().int().positive().default(3000),
+  PORT: z.coerce.number().int().positive().optional(),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 }).parse(process.env);
 
@@ -100,11 +102,17 @@ async function configureBot() {
     { command: 'rewards', description: 'Ver recompensas' },
     { command: 'help', description: 'Ayuda' },
   ]);
+
+  if (env.NODE_ENV === 'production' && env.BOT_PUBLIC_URL) {
+    const webhookUrl = `${env.BOT_PUBLIC_URL.replace(/\/$/, '')}/telegram/webhook`;
+    await bot.api.setWebhook(webhookUrl, env.TELEGRAM_WEBHOOK_SECRET ? { secret_token: env.TELEGRAM_WEBHOOK_SECRET } : undefined);
+    console.log(`Telegram webhook configured: ${webhookUrl}`);
+  }
 }
 
 await configureBot();
 if (env.NODE_ENV === 'development') {
   bot.start({ onStart: (info) => console.log(`Bot @${info.username} running in long-polling mode`) });
 } else {
-  serve({ fetch: app.fetch, port: env.BOT_PORT }, (info) => console.log(`Webhook server listening on :${info.port}`));
+  serve({ fetch: app.fetch, port: env.PORT ?? env.BOT_PORT }, (info) => console.log(`Webhook server listening on :${info.port}`));
 }
