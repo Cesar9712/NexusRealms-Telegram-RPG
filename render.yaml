@@ -90,7 +90,5 @@ services:
           type: web
           name: nexus-legends-bot
           envVarKey: RENDER_EXTERNAL_URL
-      - key: TELEGRAM_WEBHOOK_SECRET
-        sync: false
       - key: NODE_ENV
         value: production
