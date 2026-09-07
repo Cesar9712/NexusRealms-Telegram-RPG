@@ -1,0 +1,24 @@
+{
+  "name": "@nexusrealms/miniapp",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "next dev -p 4028",
+    "build": "next build",
+    "start": "next start -p 4028",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"miniapp tests pending gameplay routes\""
+  },
+  "dependencies": {
+    "lucide-react": "^1.7.0",
+    "next": "15.5.18",
+    "react": "19.0.3",
+    "react-dom": "19.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "19.0.3",
+    "@types/react-dom": "19.0.3",
+    "typescript": "^5.9.2"
+  }
+}

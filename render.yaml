@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: nexus-legends-api
+    runtime: node
+    plan: free
+    branch: bootstrap/rpg-platform
+    buildCommand: corepack enable && corepack prepare pnpm@10.15.1 --activate && pnpm install --no-frozen-lockfile && pnpm --filter @nexusrealms/api build
+    startCommand: pnpm --filter @nexusrealms/api start
+    healthCheckPath: /health
+  - type: web
+    name: nexus-legends-miniapp
+    runtime: node
+    plan: free
+    branch: bootstrap/rpg-platform
+    buildCommand: corepack enable && corepack prepare pnpm@10.15.1 --activate && pnpm install --no-frozen-lockfile && pnpm --filter @nexusrealms/miniapp build
+    startCommand: pnpm --filter @nexusrealms/miniapp start
+  - type: worker
+    name: nexus-legends-worker
+    runtime: node
+    plan: free
+    branch: bootstrap/rpg-platform
+    buildCommand: corepack enable && corepack prepare pnpm@10.15.1 --activate && pnpm install --no-frozen-lockfile && pnpm --filter @nexusrealms/worker build
+    startCommand: pnpm --filter @nexusrealms/worker start
+  - type: web
+    name: nexus-legends-bot
+    runtime: node
+    plan: free
+    branch: bootstrap/rpg-platform
+    buildCommand: corepack enable && corepack prepare pnpm@10.15.1 --activate && pnpm install --no-frozen-lockfile && pnpm --filter @nexusrealms/bot build
+    startCommand: pnpm --filter @nexusrealms/bot start
