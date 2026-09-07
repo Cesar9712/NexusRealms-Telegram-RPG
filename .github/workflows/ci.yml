@@ -13,6 +13,21 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: nexus_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d nexus_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/nexus_test
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,6 +44,12 @@ jobs:
 
       - name: Install
         run: pnpm install --no-frozen-lockfile
+
+      - name: PostgreSQL schema and regression tests
+        run: |
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f database/001_core.sql
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f database/tests/realm_persistence.sql
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f database/tests/double_tap.sql
 
       - name: Typecheck
         run: pnpm typecheck
