@@ -4,10 +4,12 @@ services:
     runtime: node
     plan: free
     branch: main
-    buildCommand: corepack enable && corepack prepare pnpm@10.15.1 --activate && pnpm install --no-frozen-lockfile && pnpm --filter @nexusrealms/api build
+    buildCommand: pnpm install --no-frozen-lockfile && pnpm --filter @nexusrealms/api build
     startCommand: pnpm --filter @nexusrealms/api migrate && pnpm --filter @nexusrealms/api start
     healthCheckPath: /health
     envVars:
+      - key: NODE_VERSION
+        value: "20.19.5"
       - key: TELEGRAM_BOT_TOKEN
         sync: false
       - key: DATABASE_URL
@@ -27,9 +29,11 @@ services:
     runtime: node
     plan: free
     branch: main
-    buildCommand: corepack enable && corepack prepare pnpm@10.15.1 --activate && pnpm install --no-frozen-lockfile && pnpm --filter @nexusrealms/miniapp build
+    buildCommand: pnpm install --no-frozen-lockfile && pnpm --filter @nexusrealms/miniapp build
     startCommand: pnpm --filter @nexusrealms/miniapp start
     envVars:
+      - key: NODE_VERSION
+        value: "20.19.5"
       - key: NEXT_PUBLIC_API_URL
         fromService:
           type: web
@@ -41,10 +45,12 @@ services:
     runtime: node
     plan: free
     branch: main
-    buildCommand: corepack enable && corepack prepare pnpm@10.15.1 --activate && pnpm install --no-frozen-lockfile && pnpm --filter @nexusrealms/api build && pnpm --filter @nexusrealms/worker build
+    buildCommand: pnpm install --no-frozen-lockfile && pnpm --filter @nexusrealms/api build && pnpm --filter @nexusrealms/worker build
     startCommand: pnpm --filter @nexusrealms/api migrate && pnpm --filter @nexusrealms/worker start
     healthCheckPath: /health
     envVars:
+      - key: NODE_VERSION
+        value: "20.19.5"
       - key: DATABASE_URL
         fromService:
           type: web
@@ -63,10 +69,12 @@ services:
     runtime: node
     plan: free
     branch: main
-    buildCommand: corepack enable && corepack prepare pnpm@10.15.1 --activate && pnpm install --no-frozen-lockfile && pnpm --filter @nexusrealms/bot build
+    buildCommand: pnpm install --no-frozen-lockfile && pnpm --filter @nexusrealms/bot build
     startCommand: pnpm --filter @nexusrealms/bot start
     healthCheckPath: /health
     envVars:
+      - key: NODE_VERSION
+        value: "20.19.5"
       - key: TELEGRAM_BOT_TOKEN
         fromService:
           type: web
