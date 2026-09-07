@@ -1,6 +1,7 @@
 import { serve } from '@hono/node-server';
 import { SignJWT, jwtVerify } from 'jose';
 import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 import postgres from 'postgres';
 import { z } from 'zod';
 import { verifyTelegramInitData } from './telegram.js';
@@ -14,7 +15,9 @@ const EnvSchema = z.object({
   TELEGRAM_INIT_DATA_MAX_AGE_SECONDS: z.coerce.number().int().positive().default(300),
   DATABASE_URL: z.string().min(1),
   SESSION_SECRET: z.string().min(32),
+  APP_URL: z.string().url(),
   API_PORT: z.coerce.number().int().positive().default(3001),
+  PORT: z.coerce.number().int().positive().optional(),
 });
 
 const ClassIdSchema = z.enum(['warrior', 'mage', 'archer', 'assassin']);
@@ -39,6 +42,13 @@ const env = EnvSchema.parse(process.env);
 const sql = postgres(env.DATABASE_URL, { max: 10, idle_timeout: 20 });
 const sessionKey = new TextEncoder().encode(env.SESSION_SECRET);
 const app = new Hono();
+
+app.use('/v1/*', cors({
+  origin: env.APP_URL,
+  allowMethods: ['GET', 'POST', 'PUT', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key'],
+  maxAge: 86_400,
+}));
 
 async function issueSession(playerId: string, telegramUserId: number) {
   return new SignJWT({ tg: telegramUserId }).setProtectedHeader({ alg: 'HS256' }).setSubject(playerId).setIssuedAt().setExpirationTime('12h').sign(sessionKey);
@@ -120,4 +130,4 @@ registerSocialRoutes(app,sql,requirePlayerId);
 registerExtraRoutes(app,sql,requirePlayerId);
 registerAdminRoutes(app,sql,requirePlayerId);
 
-serve({fetch:app.fetch,port:env.API_PORT},info=>console.log(`Nexus Realms API listening on :${info.port}`));
+serve({fetch:app.fetch,port:env.PORT ?? env.API_PORT},info=>console.log(`Nexus Realms API listening on :${info.port}`));
