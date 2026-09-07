@@ -14,6 +14,11 @@ services:
         sync: false
       - key: SESSION_SECRET
         generateValue: true
+      - key: APP_URL
+        fromService:
+          type: web
+          name: nexus-legends-miniapp
+          envVarKey: RENDER_EXTERNAL_URL
       - key: TELEGRAM_INIT_DATA_MAX_AGE_SECONDS
         value: "300"
 
@@ -31,13 +36,14 @@ services:
           name: nexus-legends-api
           envVarKey: RENDER_EXTERNAL_URL
 
-  - type: worker
+  - type: web
     name: nexus-legends-worker
     runtime: node
     plan: free
     branch: main
     buildCommand: corepack enable && corepack prepare pnpm@10.15.1 --activate && pnpm install --no-frozen-lockfile && pnpm --filter @nexusrealms/api build && pnpm --filter @nexusrealms/worker build
     startCommand: pnpm --filter @nexusrealms/api migrate && pnpm --filter @nexusrealms/worker start
+    healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
         fromService:
@@ -70,6 +76,11 @@ services:
         fromService:
           type: web
           name: nexus-legends-miniapp
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: BOT_PUBLIC_URL
+        fromService:
+          type: web
+          name: nexus-legends-bot
           envVarKey: RENDER_EXTERNAL_URL
       - key: TELEGRAM_WEBHOOK_SECRET
         generateValue: true
