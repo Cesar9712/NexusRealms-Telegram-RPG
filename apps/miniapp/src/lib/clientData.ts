@@ -1,7 +1,7 @@
 'use client';
 
 const apiUrl=process.env.NEXT_PUBLIC_API_URL??'http://localhost:3001';
-const TTL=30_000;
+const TTL=45_000;
 type Payload={expires:number;status:number;statusText:string;headers:[string,string][];body:string};
 const responseCache=new Map<string,Payload>();
 const pending=new Map<string,Promise<Payload>>();
@@ -40,11 +40,20 @@ export function installFastFetchCache(){
   };
 }
 
+function warm(paths:string[],headers:{authorization:string}){
+  for(const path of paths)void fetch(`${apiUrl}${path}`,{headers}).catch(()=>{});
+}
+
 export function prefetchGameData(){
   installFastFetchCache();
-  const headers={authorization:`Bearer ${token()}`};
-  const first=['/v1/progression','/v1/inventory','/v1/quests','/v1/bastion','/v1/clan/dashboard','/v1/battle-pass'];
-  const second=['/v1/profession-tree','/v1/shop','/v1/skills','/v1/realms','/v1/daily-rewards','/v1/professions'];
-  window.setTimeout(()=>{for(const path of first)void fetch(`${apiUrl}${path}`,{headers}).catch(()=>{});},60);
-  window.setTimeout(()=>{for(const path of second)void fetch(`${apiUrl}${path}`,{headers}).catch(()=>{});},700);
+  const session=token();
+  if(!session)return;
+  const headers={authorization:`Bearer ${session}`};
+
+  // Avoid a burst of a dozen DB-backed requests immediately after Telegram auth.
+  // Core screens warm first; deeper systems wait until the initial UI is interactive.
+  window.setTimeout(()=>warm(['/v1/inventory','/v1/quests','/v1/bastion'],headers),180);
+  window.setTimeout(()=>warm(['/v1/progression','/v1/battle-pass','/v1/clan/dashboard'],headers),650);
+  window.setTimeout(()=>warm(['/v1/profession-tree','/v1/shop','/v1/skills'],headers),1300);
+  window.setTimeout(()=>warm(['/v1/realms','/v1/daily-rewards','/v1/professions'],headers),2100);
 }
