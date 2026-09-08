@@ -17,11 +17,16 @@ async function advanceLiveOps(){
   for(const war of wars){
    const [settled]=await tx`select game.settle_clan_war(${war.id}) result`;
    const result=(settled?.result??{}) as Record<string,unknown>;
+   const winner=result.winnerClanId?String(result.winnerClanId):null;
+   const scoreA=Number(result.scoreA??0);
+   const scoreB=Number(result.scoreB??0);
    for(const clanId of [war.clan_a,war.clan_b]){
     const members=await tx`select player_id from game.clan_members where clan_id=${clanId}`;
-    const winner=result.winnerClanId?String(result.winnerClanId):null;
     const outcome=winner===null?'draw':winner===String(clanId)?'win':'loss';
-    for(const member of members)await tx`insert into game.player_notifications(player_id,kind,payload,dedupe_key) values(${member.player_id},'clan_war_finished',${tx.json({warId:war.id,outcome,scoreA:result.scoreA,scoreB:result.scoreB})},${`clan-war:${war.id}:${member.player_id}`}) on conflict do nothing`;
+    for(const member of members){
+     const payload={warId:String(war.id),outcome,scoreA:Number.isFinite(scoreA)?scoreA:0,scoreB:Number.isFinite(scoreB)?scoreB:0};
+     await tx`insert into game.player_notifications(player_id,kind,payload,dedupe_key) values(${member.player_id},'clan_war_finished',${tx.json(payload)},${`clan-war:${war.id}:${member.player_id}`}) on conflict do nothing`;
+    }
    }
   }
  });
