@@ -18,6 +18,7 @@ import './inventory-premium.css';
 import './settings.css';
 import './liveops.css';
 import './combat-premium.css';
+import './bastion-premium.css';
 
 export const metadata: Metadata = {
   title: 'Nexus Realms: Telegram Legends',
