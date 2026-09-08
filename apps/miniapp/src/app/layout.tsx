@@ -7,6 +7,7 @@ import './extras.css';
 import './systems.css';
 import './admin.css';
 import './premium-theme.css';
+import './premium-home.css';
 
 export const metadata: Metadata = {
   title: 'Nexus Realms: Telegram Legends',
@@ -18,7 +19,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: 'cover',
-  themeColor: '#09070d',
+  themeColor: '#07060a',
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
