@@ -12,6 +12,7 @@ import './progression.css';
 import './crafting-premium.css';
 import './portrait-art.css';
 import './realm-art.css';
+import './aaa-polish.css';
 
 export const metadata: Metadata = {
   title: 'Nexus Realms: Telegram Legends',
