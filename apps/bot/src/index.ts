@@ -90,7 +90,9 @@ const app = new Hono();
 app.get('/health', (c) => c.json({ ok: true, service: 'nexusrealms-bot', serverTime: new Date().toISOString() }));
 const telegramWebhook = webhookCallback(bot, 'hono');
 app.post('/telegram/webhook', async (c) => {
-  if (c.req.header('x-telegram-bot-api-secret-token') !== webhookSecret) {
+  const hasValidSecret = c.req.header('x-telegram-bot-api-secret-token') === webhookSecret;
+  console.log(`Telegram webhook request received: secret=${hasValidSecret ? 'valid' : 'invalid'}`);
+  if (!hasValidSecret) {
     return c.text('Forbidden', 403);
   }
   return telegramWebhook(c);
@@ -110,7 +112,14 @@ async function configureBot() {
   if (env.NODE_ENV === 'production' && env.BOT_PUBLIC_URL) {
     const webhookUrl = `${env.BOT_PUBLIC_URL.replace(/\/$/, '')}/telegram/webhook`;
     await bot.api.setWebhook(webhookUrl, { secret_token: webhookSecret });
-    console.log(`Telegram webhook configured: ${webhookUrl}`);
+    const webhookInfo = await bot.api.getWebhookInfo();
+    console.log('Telegram webhook diagnostics', {
+      url: webhookInfo.url,
+      pendingUpdateCount: webhookInfo.pending_update_count,
+      lastErrorDate: webhookInfo.last_error_date ?? null,
+      lastErrorMessage: webhookInfo.last_error_message ?? null,
+      maxConnections: webhookInfo.max_connections ?? null,
+    });
   }
 }
 
