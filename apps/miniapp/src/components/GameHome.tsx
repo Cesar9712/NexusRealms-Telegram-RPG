@@ -1,6 +1,6 @@
 'use client';
 
-import { Backpack, BarChart3, BookOpen, Brain, CalendarDays, Castle, ChevronRight, CircleUserRound, Coins, Crown, Gem, Gift, Hammer, Map as MapIcon, Medal, PawPrint, ScrollText, Shield, ShoppingBag, Sparkles, Swords, Trophy, UserPlus, Users, WandSparkles, Zap } from 'lucide-react';
+import { Backpack, BarChart3, BookOpen, Brain, CalendarDays, Castle, ChevronRight, CircleUserRound, Coins, Crown, Gem, Gift, Hammer, Map as MapIcon, Medal, PawPrint, RefreshCw, ScrollText, Shield, ShoppingBag, Sparkles, Swords, Trophy, UserPlus, Users, WandSparkles, Zap } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { prefetchGameData } from '../lib/clientData';
 import { CharacterCreation } from './CharacterCreation';
@@ -15,12 +15,59 @@ const realmLabels:Record<string,{name:string;description:string}>={'ashen-fronti
 const classLabels:Record<string,string>={warrior:'Guerrero',mage:'Mago',archer:'Arquero',assassin:'Asesino'};
 const previewSnapshot:Snapshot={serverTime:new Date().toISOString(),player:{display_name:'Valdris'},character:{name:'Valdris Nightfall',class_id:'warrior',current_realm_id:'ashen-frontier',level:7,experience:1840,hp:132,hp_max:140,mp:58,mp_max:70,energy:82,energy_max:100,power:1284},clan:{name:'Custodios del Nexo',tag:'NEX',role:'member'},battlePass:{level:4,xp:360,premium_unlocked:false},referral:{referral_code:'nexus9712'},earn:{internal_credits:150},inventoryCount:23,resources:[{resource_code:'gold',amount:1480},{resource_code:'crystals',amount:32},{resource_code:'premium_credits',amount:850}]};
 function meter(value:number,max:number){return `${Math.max(0,Math.min(100,(value/Math.max(1,max))*100))}%`;}
+function sleep(ms:number){return new Promise(resolve=>window.setTimeout(resolve,ms));}
+function launchInitData(){
+ const sdk=window.Telegram?.WebApp?.initData?.trim();
+ if(sdk)return sdk;
+ const hash=new URLSearchParams(window.location.hash.replace(/^#/,''));
+ const search=new URLSearchParams(window.location.search);
+ return hash.get('tgWebAppData')??search.get('tgWebAppData')??'';
+}
+async function fetchWithTimeout(input:RequestInfo|URL,init:RequestInit,timeoutMs:number){
+ const controller=new AbortController();
+ const timer=window.setTimeout(()=>controller.abort(),timeoutMs);
+ try{return await fetch(input,{...init,signal:controller.signal,cache:'no-store'});}finally{window.clearTimeout(timer);}
+}
 
 export function GameHome(){
- const [snapshot,setSnapshot]=useState<Snapshot|null>(null),[status,setStatus]=useState<'loading'|'ready'|'error'|'telegram-required'>('loading'),[activeNav,setActiveNav]=useState('home');
- useEffect(()=>{const webApp=window.Telegram?.WebApp;webApp?.ready();webApp?.expand();webApp?.setHeaderColor?.('#07060a');webApp?.setBackgroundColor?.('#07060a');const initData=webApp?.initData;if(!initData){if(process.env.NODE_ENV==='development'){setSnapshot(previewSnapshot);setStatus('ready')}else setStatus('telegram-required');return;}fetch(`${apiUrl}/v1/auth/telegram`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({initData})}).then(async r=>{if(!r.ok)throw new Error('AUTH_FAILED');return r.json()}).then((d:{token:string;snapshot:Snapshot})=>{sessionStorage.setItem('nr_session',d.token);setSnapshot(d.snapshot);setStatus('ready');if(d.snapshot.character)prefetchGameData();}).catch(()=>setStatus('error'));},[]);
+ const [snapshot,setSnapshot]=useState<Snapshot|null>(null),[status,setStatus]=useState<'loading'|'ready'|'error'|'telegram-required'>('loading'),[activeNav,setActiveNav]=useState('home'),[bootNonce,setBootNonce]=useState(0),[bootMessage,setBootMessage]=useState('Sincronizando el reino…');
+ useEffect(()=>{
+  let cancelled=false;
+  async function bootstrap(){
+   setStatus('loading');setBootMessage('Conectando con el Nexo…');
+   const webApp=window.Telegram?.WebApp;
+   webApp?.ready();webApp?.expand();webApp?.setHeaderColor?.('#07060a');webApp?.setBackgroundColor?.('#07060a');
+   let initData=launchInitData();
+   if(!initData){
+    setBootMessage('Validando Telegram…');
+    for(let i=0;i<12&&!initData&&!cancelled;i++){await sleep(125);initData=launchInitData();}
+   }
+   if(cancelled)return;
+   if(!initData){
+    if(process.env.NODE_ENV==='development'){setSnapshot(previewSnapshot);setStatus('ready');return;}
+    setStatus('telegram-required');return;
+   }
+   let lastError:unknown=null;
+   for(let attempt=0;attempt<3&&!cancelled;attempt++){
+    try{
+     setBootMessage(attempt===0?'Sincronizando tu héroe…':`Reintentando conexión ${attempt+1}/3…`);
+     const r=await fetchWithTimeout(`${apiUrl}/v1/auth/telegram`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({initData})},attempt===0?9_000:12_000);
+     if(!r.ok)throw new Error(`AUTH_${r.status}`);
+     const d=await r.json() as {token:string;snapshot:Snapshot};
+     if(cancelled)return;
+     sessionStorage.setItem('nr_session',d.token);
+     setSnapshot(d.snapshot);setStatus('ready');
+     if(d.snapshot.character)window.setTimeout(prefetchGameData,30);
+     return;
+    }catch(error){lastError=error;if(attempt<2)await sleep(500*(attempt+1));}
+   }
+   if(!cancelled){console.error('Nexus bootstrap failed',lastError);setStatus('error');setBootMessage('No pudimos conectar con el servidor.');}
+  }
+  void bootstrap();
+  return()=>{cancelled=true;};
+ },[bootNonce]);
  const resourceMap=useMemo(()=>new globalThis.Map(snapshot?.resources.map(r=>[r.resource_code,Number(r.amount)])??[]),[snapshot]);
- if(status!=='ready'||!snapshot)return <main className="gate-shell"><div className="sigil"/><h1>NEXUS REALMS</h1><p>{status==='telegram-required'?'Abre el juego desde Telegram para autenticar tu héroe.':status==='error'?'No se pudo validar la sesión. Vuelve a abrir el juego desde Telegram.':'Sincronizando el reino…'}</p></main>;
+ if(status!=='ready'||!snapshot)return <main className="gate-shell"><div className="sigil"/><h1>NEXUS REALMS</h1><p>{status==='telegram-required'?'Abre el juego desde el botón JUGAR de @NexusRealmsLegendsBot.':status==='error'?bootMessage:bootMessage}</p>{status==='error'&&<button className="module-primary" onClick={()=>setBootNonce(n=>n+1)}><RefreshCw size={17}/>REINTENTAR</button>}</main>;
  if(!snapshot.character)return <CharacterCreation onCreated={s=>{setSnapshot(s);window.setTimeout(prefetchGameData,50);}}/>;
  const c=snapshot.character,realm=realmLabels[c.current_realm_id]??{name:c.current_realm_id,description:'Una región desconocida del Nexo espera ser explorada.'};
  const quick=[['progression','Atributos',Brain],['profession-tree','Talentos',Sparkles],['crafting','Crafting',Hammer],['events','Eventos',CalendarDays],['battlepass','Pase',Trophy],['shop','Tienda',ShoppingBag],['market','Mercado',Coins],['arena','Arena',Medal],['skills','Habilidades',WandSparkles],['realms','Reinos',MapIcon],['rankings','Rankings',BarChart3],['referrals','Referidos',UserPlus],['earn','Earn',Sparkles],['codex','Codex',BookOpen],['achievements','Logros',Crown],['professions','Profesiones',Hammer],['daily','Diario',Gift],['companions','Compañeros',PawPrint]] as const;
