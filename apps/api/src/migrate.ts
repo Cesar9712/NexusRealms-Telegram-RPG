@@ -19,6 +19,7 @@ const migrations = [
   '011_skill_descriptions.sql',
   '012_equipment_market_integrity.sql',
   '013_equipment_power.sql',
+  '014_performance_indexes.sql',
 ] as const;
 
 try {
