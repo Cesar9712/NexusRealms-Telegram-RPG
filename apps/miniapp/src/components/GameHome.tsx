@@ -1,13 +1,18 @@
 'use client';
 
-import { Backpack, BarChart3, BookOpen, Brain, CalendarDays, Castle, ChevronRight, CircleUserRound, Coins, Crown, Gem, Gift, Hammer, Map as MapIcon, Medal, PawPrint, RefreshCw, ScrollText, Shield, ShoppingBag, Sparkles, Swords, Trophy, UserPlus, Users, WandSparkles, Zap } from 'lucide-react';
+import { Backpack, BarChart3, BookOpen, Brain, CalendarDays, Castle, ChevronRight, CircleUserRound, Coins, Crown, Gem, Gift, Hammer, Map as MapIcon, Medal, PawPrint, RefreshCw, ScrollText, Shield, ShoppingBag, SlidersHorizontal, Sparkles, Swords, Trophy, UserPlus, Users, WandSparkles, Zap } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { prefetchGameData } from '../lib/clientData';
+import { applyPreferences, installButtonSounds } from '../lib/clientPreferences';
 import { CharacterCreation } from './CharacterCreation';
 import { CraftingPanel } from './CraftingPanel';
 import { EndgamePanel } from './EndgamePanel';
 import { GameModulePanel } from './GameModulePanel';
+import { InventoryPanel } from './InventoryPanel';
+import { NetworkStatus } from './NetworkStatus';
+import { OnboardingCoach } from './OnboardingCoach';
 import { ProgressionPanel } from './ProgressionPanel';
+import { SettingsPanel } from './SettingsPanel';
 
 export type Snapshot={serverTime:string;player:{display_name:string;username?:string|null;locale?:string};character:{name:string;class_id:string;current_realm_id:string;level:number;experience:number;hp:number;hp_max:number;mp:number;mp_max:number;energy:number;energy_max:number;power:number;appearance?:Record<string,unknown>}|null;clan:{name:string;tag:string;role:string}|null;battlePass:{level:number;xp:number;premium_unlocked:boolean}|null;referral:{referral_code:string}|null;earn:{internal_credits:number};inventoryCount:number;resources:Array<{resource_code:string;amount:number}>};
 declare global{interface Window{Telegram?:{WebApp?:{initData:string;ready:()=>void;expand:()=>void;setHeaderColor?:(color:string)=>void;setBackgroundColor?:(color:string)=>void}}}}
@@ -17,76 +22,49 @@ const classLabels:Record<string,string>={warrior:'Guerrero',mage:'Mago',archer:'
 const previewSnapshot:Snapshot={serverTime:new Date().toISOString(),player:{display_name:'Valdris'},character:{name:'Valdris Nightfall',class_id:'warrior',current_realm_id:'ashen-frontier',level:7,experience:1840,hp:132,hp_max:140,mp:58,mp_max:70,energy:82,energy_max:100,power:1284},clan:{name:'Custodios del Nexo',tag:'NEX',role:'member'},battlePass:{level:4,xp:360,premium_unlocked:false},referral:{referral_code:'nexus9712'},earn:{internal_credits:150},inventoryCount:23,resources:[{resource_code:'gold',amount:1480},{resource_code:'crystals',amount:32},{resource_code:'premium_credits',amount:850}]};
 function meter(value:number,max:number){return `${Math.max(0,Math.min(100,(value/Math.max(1,max))*100))}%`;}
 function sleep(ms:number){return new Promise(resolve=>window.setTimeout(resolve,ms));}
-function launchInitData(){
- const sdk=window.Telegram?.WebApp?.initData?.trim();
- if(sdk)return sdk;
- const hash=new URLSearchParams(window.location.hash.replace(/^#/,''));
- const search=new URLSearchParams(window.location.search);
- return hash.get('tgWebAppData')??search.get('tgWebAppData')??'';
-}
-async function fetchWithTimeout(input:RequestInfo|URL,init:RequestInit,timeoutMs:number){
- const controller=new AbortController();
- const timer=window.setTimeout(()=>controller.abort(),timeoutMs);
- try{return await fetch(input,{...init,signal:controller.signal,cache:'no-store'});}finally{window.clearTimeout(timer);}
-}
+function launchInitData(){const sdk=window.Telegram?.WebApp?.initData?.trim();if(sdk)return sdk;const hash=new URLSearchParams(window.location.hash.replace(/^#/,''));const search=new URLSearchParams(window.location.search);return hash.get('tgWebAppData')??search.get('tgWebAppData')??'';}
+async function fetchWithTimeout(input:RequestInfo|URL,init:RequestInit,timeoutMs:number){const controller=new AbortController();const timer=window.setTimeout(()=>controller.abort(),timeoutMs);try{return await fetch(input,{...init,signal:controller.signal,cache:'no-store'});}finally{window.clearTimeout(timer);}}
+function telemetrySession(){let id=sessionStorage.getItem('nr_telemetry_session');if(!id){id=crypto.randomUUID();sessionStorage.setItem('nr_telemetry_session',id);}return id;}
 
 export function GameHome(){
  const [snapshot,setSnapshot]=useState<Snapshot|null>(null),[status,setStatus]=useState<'loading'|'ready'|'error'|'telegram-required'>('loading'),[activeNav,setActiveNav]=useState('home'),[bootNonce,setBootNonce]=useState(0),[bootMessage,setBootMessage]=useState('Sincronizando el reino…');
+ useEffect(()=>{applyPreferences();installButtonSounds();},[]);
  useEffect(()=>{
   let cancelled=false;
   async function bootstrap(){
    setStatus('loading');setBootMessage('Conectando con el Nexo…');
-   const webApp=window.Telegram?.WebApp;
-   webApp?.ready();webApp?.expand();webApp?.setHeaderColor?.('#07060a');webApp?.setBackgroundColor?.('#07060a');
-   let initData=launchInitData();
-   if(!initData){
-    setBootMessage('Validando Telegram…');
-    for(let i=0;i<12&&!initData&&!cancelled;i++){await sleep(125);initData=launchInitData();}
-   }
-   if(cancelled)return;
-   if(!initData){
-    if(process.env.NODE_ENV==='development'){setSnapshot(previewSnapshot);setStatus('ready');return;}
-    setStatus('telegram-required');return;
-   }
-   let lastError:unknown=null;
-   for(let attempt=0;attempt<3&&!cancelled;attempt++){
-    try{
-     setBootMessage(attempt===0?'Sincronizando tu héroe…':`Reintentando conexión ${attempt+1}/3…`);
-     const r=await fetchWithTimeout(`${apiUrl}/v1/auth/telegram`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({initData})},attempt===0?9_000:12_000);
-     if(!r.ok)throw new Error(`AUTH_${r.status}`);
-     const d=await r.json() as {token:string;snapshot:Snapshot};
-     if(cancelled)return;
-     sessionStorage.setItem('nr_session',d.token);
-     setSnapshot(d.snapshot);setStatus('ready');
-     if(d.snapshot.character)window.setTimeout(prefetchGameData,30);
-     return;
-    }catch(error){lastError=error;if(attempt<2)await sleep(500*(attempt+1));}
-   }
+   const webApp=window.Telegram?.WebApp;webApp?.ready();webApp?.expand();webApp?.setHeaderColor?.('#07060a');webApp?.setBackgroundColor?.('#07060a');
+   let initData=launchInitData();if(!initData){setBootMessage('Validando Telegram…');for(let i=0;i<12&&!initData&&!cancelled;i++){await sleep(125);initData=launchInitData();}}
+   if(cancelled)return;if(!initData){if(process.env.NODE_ENV==='development'){setSnapshot(previewSnapshot);setStatus('ready');return;}setStatus('telegram-required');return;}
+   let lastError:unknown=null;for(let attempt=0;attempt<3&&!cancelled;attempt++)try{setBootMessage(attempt===0?'Sincronizando tu héroe…':`Reintentando conexión ${attempt+1}/3…`);const r=await fetchWithTimeout(`${apiUrl}/v1/auth/telegram`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({initData})},attempt===0?9_000:12_000);if(!r.ok)throw new Error(`AUTH_${r.status}`);const d=await r.json() as {token:string;snapshot:Snapshot};if(cancelled)return;sessionStorage.setItem('nr_session',d.token);setSnapshot(d.snapshot);setStatus('ready');if(d.snapshot.character)window.setTimeout(prefetchGameData,30);return;}catch(error){lastError=error;if(attempt<2)await sleep(500*(attempt+1));}
    if(!cancelled){console.error('Nexus bootstrap failed',lastError);setStatus('error');setBootMessage('No pudimos conectar con el servidor.');}
   }
-  void bootstrap();
-  return()=>{cancelled=true;};
+  void bootstrap();return()=>{cancelled=true;};
  },[bootNonce]);
+ useEffect(()=>{if(status!=='ready'||!snapshot?.character||!sessionStorage.getItem('nr_session'))return;const controller=new AbortController();const timer=window.setTimeout(()=>{void fetch(`${apiUrl}/v1/analytics/events`,{method:'POST',headers:{authorization:`Bearer ${sessionStorage.getItem('nr_session')??''}`,'content-type':'application/json'},body:JSON.stringify({event:'screen_view',sessionId:telemetrySession(),properties:{screen:activeNav,level:snapshot.character?.level,realm:snapshot.character?.current_realm_id}}),signal:controller.signal}).catch(()=>{});},350);return()=>{window.clearTimeout(timer);controller.abort();};},[activeNav,status]);
  const resourceMap=useMemo(()=>new globalThis.Map(snapshot?.resources.map(r=>[r.resource_code,Number(r.amount)])??[]),[snapshot]);
- if(status!=='ready'||!snapshot)return <main className="gate-shell"><div className="sigil"/><h1>NEXUS REALMS</h1><p>{status==='telegram-required'?'Abre el juego desde el botón JUGAR de @NexusRealmsLegendsBot.':status==='error'?bootMessage:bootMessage}</p>{status==='error'&&<button className="module-primary" onClick={()=>setBootNonce(n=>n+1)}><RefreshCw size={17}/>REINTENTAR</button>}</main>;
+ if(status!=='ready'||!snapshot)return <main className="gate-shell"><div className="sigil"/><h1>NEXUS REALMS</h1><p>{status==='telegram-required'?'Abre el juego desde el botón JUGAR de @NexusRealmsLegendsBot.':bootMessage}</p>{status==='error'&&<button className="module-primary" onClick={()=>setBootNonce(n=>n+1)}><RefreshCw size={17}/>REINTENTAR</button>}</main>;
  if(!snapshot.character)return <CharacterCreation onCreated={s=>{setSnapshot(s);window.setTimeout(prefetchGameData,50);}}/>;
  const c=snapshot.character,realm=realmLabels[c.current_realm_id]??{name:c.current_realm_id,description:'Una región desconocida del Nexo espera ser explorada.'};
- const quick=[['progression','Atributos',Brain],['profession-tree','Talentos',Sparkles],['crafting','Crafting',Hammer],['endgame','Endgame',Crown],['events','Eventos',CalendarDays],['battlepass','Pase',Trophy],['shop','Tienda',ShoppingBag],['market','Mercado',Coins],['arena','Arena',Medal],['skills','Habilidades',WandSparkles],['realms','Reinos',MapIcon],['rankings','Rankings',BarChart3],['referrals','Referidos',UserPlus],['earn','Earn',Sparkles],['codex','Codex',BookOpen],['achievements','Logros',Crown],['professions','Profesiones',Hammer],['daily','Diario',Gift],['companions','Compañeros',PawPrint]] as const;
+ const quick=[['progression','Atributos',Brain],['profession-tree','Talentos',Sparkles],['crafting','Crafting',Hammer],['endgame','Endgame',Crown],['events','Eventos',CalendarDays],['battlepass','Pase',Trophy],['shop','Tienda',ShoppingBag],['market','Mercado',Coins],['arena','Arena',Medal],['skills','Habilidades',WandSparkles],['realms','Reinos',MapIcon],['rankings','Rankings',BarChart3],['referrals','Referidos',UserPlus],['earn','Earn',Sparkles],['codex','Codex',BookOpen],['achievements','Logros',Crown],['professions','Profesiones',Hammer],['daily','Diario',Gift],['companions','Compañeros',PawPrint],['settings','Ajustes',SlidersHorizontal]] as const;
  const premiumCredits=resourceMap.get('premium_credits')??0;
- const specialPanel=activeNav==='progression'||activeNav==='profession-tree'||activeNav==='crafting'||activeNav==='endgame';
+ const specialPanel=['progression','profession-tree','crafting','endgame','inventory','settings'].includes(activeNav);
  return <main className={`game-shell class-${c.class_id}`}>
+  <NetworkStatus/><OnboardingCoach snapshot={snapshot} onNavigate={setActiveNav}/>
   <div className="ambient ambient-one"/><div className="ambient ambient-two"/>
   <header className="topbar"><div className={`avatar-frame avatar-${c.class_id}`}><CircleUserRound size={28}/></div><div className="identity"><span className="eyebrow">NIVEL {c.level} · {classLabels[c.class_id]??c.class_id}</span><strong>{c.name}</strong>{snapshot.clan&&<small className="home-clan-tag">[{snapshot.clan.tag}] {snapshot.clan.name}</small>}</div><div className="power"><Crown size={15}/><span>{Number(c.power).toLocaleString()}</span></div></header>
   <section className="vitals panel"><div className="vital-row"><span>HP</span><div className="track"><i className="hp" style={{width:meter(c.hp,c.hp_max)}}/></div><b>{c.hp}/{c.hp_max}</b></div><div className="vital-row"><span>MP</span><div className="track"><i className="mp" style={{width:meter(c.mp,c.mp_max)}}/></div><b>{c.mp}/{c.mp_max}</b></div><div className="vital-row"><span><Zap size={13}/> EN</span><div className="track"><i className="energy" style={{width:meter(c.energy,c.energy_max)}}/></div><b>{c.energy}/{c.energy_max}</b></div></section>
   <section className={`realm-hero realm-${c.current_realm_id} hero-${c.class_id}`}><div className="realm-mist"/><div className="rune-orbit"><span/><span/><span/></div><div className="realm-copy"><span className="eyebrow">REINO ACTUAL</span><h1>{realm.name}</h1><p>{realm.description}</p><div className="realm-badges"><span>{classLabels[c.class_id]??c.class_id}</span><span>Poder {Number(c.power).toLocaleString()}</span></div></div><div className={`hero-silhouette hero-${c.class_id}`}><div className="hero-glow"/><div className="hero-helm"/><div className="hero-chest"/><div className="hero-shoulder hero-left"/><div className="hero-shoulder hero-right"/><div className="blade"/><div className="cape"/></div><button className="primary-cta" onClick={()=>setActiveNav('adventure')}><Swords size={19}/> CONTINUAR AVENTURA <ChevronRight size={18}/></button></section>
   <section className="currency-strip panel"><button onClick={()=>setActiveNav('inventory')}><Coins size={17}/><span>Oro</span><b>{(resourceMap.get('gold')??0).toLocaleString()}</b></button><button onClick={()=>setActiveNav('inventory')}><Gem size={17}/><span>Cristales</span><b>{(resourceMap.get('crystals')??0).toLocaleString()}</b></button><button onClick={()=>setActiveNav('shop')}><Crown size={17}/><span>Créditos</span><b>{premiumCredits.toLocaleString()}</b></button><button onClick={()=>setActiveNav('earn')}><Sparkles size={17}/><span>Earn</span><b>{Number(snapshot.earn.internal_credits).toLocaleString()}</b></button></section>
   {snapshot.battlePass&&<section className="home-pass-card panel" onClick={()=>setActiveNav('battlepass')}><Trophy/><div><span className="eyebrow">PASE DE BATALLA</span><b>Nivel {snapshot.battlePass.level} · {snapshot.battlePass.xp%100}/100 XP</b><small>{snapshot.battlePass.premium_unlocked?'Ruta Premium desbloqueada':'Toca para ver todos los premios Gratis y Premium'}</small></div><ChevronRight/></section>}
-  <section className="section-block"><div className="section-title"><div><span className="eyebrow">PROGRESIÓN</span><h2>Tu leyenda</h2></div><Trophy size={20}/></div><div className="feature-grid"><button className="feature-card" onClick={()=>setActiveNav('progression')}><Brain/><span><b>Atributos</b><small>Puntos, táctica y poder de combate</small></span><ChevronRight/></button><button className="feature-card" onClick={()=>setActiveNav('bastion')}><Castle/><span><b>Bastión</b><small>Edificios, producción y mejoras</small></span><ChevronRight/></button><button className="feature-card" onClick={()=>setActiveNav('clan')}><Users/><span><b>{snapshot.clan?.tag?`[${snapshot.clan.tag}] ${snapshot.clan.name}`:'Clan'}</b><small>{snapshot.clan?'Base, miembros y raids':'Crear por 500 créditos · buscar · unirse'}</small></span><ChevronRight/></button><button className="feature-card" onClick={()=>setActiveNav('inventory')}><Backpack/><span><b>Inventario</b><small>{snapshot.inventoryCount} objetos · recursos</small></span><ChevronRight/></button><button className="feature-card" onClick={()=>setActiveNav('quests')}><ScrollText/><span><b>Misiones</b><small>Objetivos y recompensas visibles</small></span><ChevronRight/></button><button className="feature-card" onClick={()=>setActiveNav('profession-tree')}><Sparkles/><span><b>Talentos</b><small>Árboles de las 8 profesiones</small></span><ChevronRight/></button></div></section>
+  <section className="section-block"><div className="section-title"><div><span className="eyebrow">PROGRESIÓN</span><h2>Tu leyenda</h2></div><Trophy size={20}/></div><div className="feature-grid"><button className="feature-card" onClick={()=>setActiveNav('progression')}><Brain/><span><b>Atributos</b><small>Puntos, táctica y poder de combate</small></span><ChevronRight/></button><button className="feature-card" onClick={()=>setActiveNav('bastion')}><Castle/><span><b>Bastión</b><small>Edificios, producción y mejoras</small></span><ChevronRight/></button><button className="feature-card" onClick={()=>setActiveNav('clan')}><Users/><span><b>{snapshot.clan?.tag?`[${snapshot.clan.tag}] ${snapshot.clan.name}`:'Clan'}</b><small>{snapshot.clan?'Base, miembros y raids':'Crear por 500 créditos · buscar · unirse'}</small></span><ChevronRight/></button><button className="feature-card" onClick={()=>setActiveNav('inventory')}><Backpack/><span><b>Inventario</b><small>{snapshot.inventoryCount} objetos · filtros · mejoras</small></span><ChevronRight/></button><button className="feature-card" onClick={()=>setActiveNav('quests')}><ScrollText/><span><b>Misiones</b><small>Objetivos y recompensas visibles</small></span><ChevronRight/></button><button className="feature-card" onClick={()=>setActiveNav('endgame')}><Crown/><span><b>Endgame</b><small>Jefes, mazmorras, Torre y expediciones</small></span><ChevronRight/></button></div></section>
   <section className="quick-access"><div className="quick-title"><span className="eyebrow">MUNDO Y SISTEMAS</span><h2>Sistemas del Nexo</h2></div><div className="quick-grid">{quick.map(([id,label,Icon])=><button key={id} onClick={()=>setActiveNav(id)}><Icon/><span>{label}</span></button>)}</div></section>
   <section className="section-block world-card panel"><div><span className="eyebrow">MAPA DEL NEXO</span><h2>9 reinos conectados</h2><p>Viaja entre regiones sin perder clan, Earn, Pase, referidos, equipo ni recursos.</p></div><button onClick={()=>setActiveNav('realms')}><MapIcon size={18}/>ABRIR MAPA COMPLETO</button></section>
   <ProgressionPanel active={activeNav} snapshot={snapshot} onClose={()=>setActiveNav('home')} onSnapshot={setSnapshot}/>
   <CraftingPanel active={activeNav} snapshot={snapshot} onClose={()=>setActiveNav('home')} onSnapshot={setSnapshot}/>
   <EndgamePanel active={activeNav} snapshot={snapshot} onClose={()=>setActiveNav('home')} onSnapshot={setSnapshot}/>
+  <InventoryPanel active={activeNav} snapshot={snapshot} onClose={()=>setActiveNav('home')} onSnapshot={setSnapshot}/>
+  <SettingsPanel active={activeNav} onClose={()=>setActiveNav('home')}/>
   <GameModulePanel active={specialPanel?'home':activeNav} snapshot={snapshot} onClose={()=>setActiveNav('home')} onSnapshot={setSnapshot}/>
   <nav className="bottom-nav" aria-label="Navegación principal"><button className={activeNav==='home'?'active':''} onClick={()=>setActiveNav('home')}><Shield/><span>Inicio</span></button><button className={activeNav==='adventure'?'active':''} onClick={()=>setActiveNav('adventure')}><Swords/><span>Aventura</span></button><button className={activeNav==='inventory'?'active':''} onClick={()=>setActiveNav('inventory')}><Backpack/><span>Equipo</span></button><button className={activeNav==='bastion'?'active':''} onClick={()=>setActiveNav('bastion')}><Castle/><span>Bastión</span></button><button className={activeNav==='clan'?'active':''} onClick={()=>setActiveNav('clan')}><Users/><span>Clan</span></button></nav>
  </main>;
