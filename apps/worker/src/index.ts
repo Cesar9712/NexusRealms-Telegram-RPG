@@ -22,7 +22,7 @@ async function telegram(chatId:string|number,text:string){const res=await fetch(
 
 async function materializeDueNotifications(){
  await sql.begin(async tx=>{
-  const due=await tx`select ch.player_id,b.character_id,b.building_code,b.level,b.upgrade_finishes_at,d.name_es from game.bastion_buildings b join game.characters ch on ch.id=b.character_id left join game.bastion_building_definitions d on d.code=b.building_code where b.upgrade_finishes_at is not null and b.upgrade_finishes_at<=now() for update`;
+  const due=await tx`select ch.player_id,b.character_id,b.building_code,b.level,b.upgrade_finishes_at,d.name_es from game.bastion_buildings b join game.characters ch on ch.id=b.character_id left join game.bastion_building_definitions d on d.code=b.building_code where b.upgrade_finishes_at is not null and b.upgrade_finishes_at<=now() for update of b`;
   for(const b of due){const dedupe=`bastion:${b.character_id}:${b.building_code}:${new Date(b.upgrade_finishes_at).getTime()}`;await tx`insert into game.player_notifications(player_id,kind,payload,dedupe_key) values(${b.player_id},'bastion_complete',${tx.json({building:b.building_code,name:b.name_es,level:Number(b.level)+1})},${dedupe}) on conflict(dedupe_key) do nothing`;await tx`update game.bastion_buildings set level=level+1,upgrade_started_at=null,upgrade_finishes_at=null,updated_at=now() where character_id=${b.character_id} and building_code=${b.building_code}`;}
   const crafts=await tx`select * from game.v_finished_crafting_notifications`;
   for(const j of crafts)await tx`insert into game.player_notifications(player_id,kind,payload,dedupe_key) values(${j.player_id},'craft_ready',${tx.json({jobId:j.job_id,recipeId:j.recipe_id})},${j.dedupe_key}) on conflict(dedupe_key) do nothing`;
