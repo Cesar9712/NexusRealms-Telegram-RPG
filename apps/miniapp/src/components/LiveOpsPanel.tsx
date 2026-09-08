@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import type { ReactElement } from 'react';
 import {
   Award, CalendarDays, Check, ChevronRight, CircleDollarSign, Coins, Crown, Gift,
   LoaderCircle, LockKeyhole, Search, Shield, ShoppingBag, Sparkles, Swords, Target,
@@ -26,7 +27,7 @@ const pct=(value:number,max:number)=>`${Math.max(0,Math.min(100,(value/Math.max(
 const timeLeft=(iso:string)=>{const ms=new Date(iso).getTime()-Date.now();if(ms<=0)return'Finalizado';const h=Math.floor(ms/3600000),m=Math.floor(ms%3600000/60000);return h>0?`${h} h ${m} min`:`${Math.max(1,m)} min`;};
 
 function RewardView({reward}:{reward:any}){
- const entries:JSX.Element[]=[];const push=(key:string,label:string,value:unknown,Icon:any)=>{if(num(value)>0)entries.push(<span key={key}><Icon/>{num(value).toLocaleString()} {label}</span>)};
+ const entries:ReactElement[]=[];const push=(key:string,label:string,value:unknown,Icon:any)=>{if(num(value)>0)entries.push(<span key={key}><Icon/>{num(value).toLocaleString()} {label}</span>)};
  push('gold','oro',reward?.gold,Coins);push('xp','EXP',reward?.xp,Sparkles);push('crystals','cristales',reward?.crystals,Sparkles);push('clan','monedas de clan',reward?.clan_coins,Shield);push('earn','Earn',reward?.earn,CircleDollarSign);
  if(reward?.resources&&typeof reward.resources==='object')for(const[k,v]of Object.entries(reward.resources))if(num(v)>0)entries.push(<span key={k}><Gift/>{num(v)} {k.replaceAll('_',' ')}</span>);
  if(reward?.chest)entries.push(<span key="chest"><Gift/>Cofre {String(reward.chest)}</span>);
