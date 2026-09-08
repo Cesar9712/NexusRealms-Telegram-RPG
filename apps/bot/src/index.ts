@@ -99,6 +99,9 @@ app.post('/telegram/webhook', async (c) => {
 });
 
 async function configureBot() {
+  const me = await bot.api.getMe();
+  console.log('Telegram bot identity', { id: me.id, username: me.username, name: me.first_name });
+
   await bot.api.setMyCommands([
     { command: 'start', description: 'Abrir Nexus Realms' },
     { command: 'play', description: 'Jugar' },
@@ -108,6 +111,14 @@ async function configureBot() {
     { command: 'rewards', description: 'Ver recompensas' },
     { command: 'help', description: 'Ayuda' },
   ]);
+
+  await bot.api.setChatMenuButton({
+    menu_button: {
+      type: 'web_app',
+      text: 'JUGAR',
+      web_app: { url: env.TELEGRAM_WEBAPP_URL },
+    },
+  });
 
   if (env.NODE_ENV === 'production' && env.BOT_PUBLIC_URL) {
     const webhookUrl = `${env.BOT_PUBLIC_URL.replace(/\/$/, '')}/telegram/webhook`;
