@@ -9,6 +9,7 @@ import { registerGameplayRoutes } from './gameplayRoutes.js';
 import { registerSocialRoutes } from './socialRoutes.js';
 import { registerAdminRoutes } from './adminRoutes.js';
 import { registerExtraRoutes } from './extraRoutes.js';
+import { registerProgressionRoutes } from './progressionRoutes.js';
 
 const EnvSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().min(20),
@@ -116,7 +117,7 @@ app.post('/v1/characters', async (c) => {
     for(const building of ['fortress','forge','laboratory','garden','mine','pond','warehouse','market','altar','barracks','arcane-tower','workshop','portal','hall-of-heroes'])await tx`insert into game.bastion_buildings(character_id,building_code) values(${character.id},${building})`;
     const response={characterId:String(character.id),classId:String(classRow.id)};await tx`update game.action_receipts set response=${tx.json(response)} where id=${receipt[0].id}`;return{duplicate:false};
   }).catch((error:Error)=>({error:error.message}));
-  if('error'in outcome)return c.json({error:outcome.error},outcome.error==='CHARACTER_ALREADY_EXISTS'?409:400);return c.json({duplicate:outcome.duplicate,snapshot:await buildSnapshot(playerId)},201);
+  if('error' in outcome)return c.json({error:outcome.error},outcome.error==='CHARACTER_ALREADY_EXISTS'?409:400);return c.json({duplicate:outcome.duplicate,snapshot:await buildSnapshot(playerId)},201);
 });
 
 app.post('/v1/realms/:realmId/travel', async (c) => {
@@ -128,6 +129,7 @@ app.post('/v1/realms/:realmId/travel', async (c) => {
 registerGameplayRoutes(app,sql,requirePlayerId,buildSnapshot);
 registerSocialRoutes(app,sql,requirePlayerId);
 registerExtraRoutes(app,sql,requirePlayerId);
+registerProgressionRoutes(app,sql,requirePlayerId);
 registerAdminRoutes(app,sql,requirePlayerId);
 
 serve({fetch:app.fetch,port:env.PORT ?? env.API_PORT},info=>console.log(`Nexus Realms API listening on :${info.port}`));
