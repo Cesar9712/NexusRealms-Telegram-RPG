@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, bootstrap/rpg-platform]
+    branches: [main, bootstrap/rpg-platform, audit/aaa-hardening-20260908]
   pull_request:
     branches: [main]
 
@@ -42,26 +42,24 @@ jobs:
           corepack prepare pnpm@10.15.1 --activate
       - name: Install
         run: pnpm install --no-frozen-lockfile
-      - name: PostgreSQL schema and regression tests
+      - name: Build migration runner
+        run: pnpm --filter @nexusrealms/api build
+      - name: PostgreSQL full schema and regression tests
         run: |
-          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f database/001_core.sql
-          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f database/002_combat_content.sql
-          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f database/003_progression_social.sql
-          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f database/004_items_codex_seasons.sql
-          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f database/005_operations.sql
-          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f database/006_progression_triggers.sql
-          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f database/tests/content_minimums.sql
-          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f database/tests/system_minimums.sql
-          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f database/tests/realm_persistence.sql
-          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f database/tests/double_tap.sql
-          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f database/tests/timer_authority.sql
-      - name: Production migration runner smoke test
+          DATABASE_URL="$TEST_DATABASE_URL" pnpm --filter @nexusrealms/api migrate
+          for test in database/tests/*.sql; do
+            echo "Running $test"
+            psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f "$test"
+          done
+      - name: Production migration runner idempotency smoke test
         run: |
           psql "postgres://postgres:postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -c "create database nexus_migrate_test"
-          pnpm --filter @nexusrealms/api build
           DATABASE_URL="$MIGRATION_TEST_DATABASE_URL" pnpm --filter @nexusrealms/api migrate
-          psql "$MIGRATION_TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f database/tests/content_minimums.sql
-          psql "$MIGRATION_TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f database/tests/system_minimums.sql
+          DATABASE_URL="$MIGRATION_TEST_DATABASE_URL" pnpm --filter @nexusrealms/api migrate
+          for test in database/tests/*.sql; do
+            echo "Running $test against migration-smoke DB"
+            psql "$MIGRATION_TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f "$test"
+          done
       - name: Typecheck
         run: pnpm typecheck
       - name: Tests
