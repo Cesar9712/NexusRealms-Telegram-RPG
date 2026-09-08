@@ -4,6 +4,7 @@ import { Backpack, BarChart3, BookOpen, Brain, CalendarDays, Castle, ChevronRigh
 import { useEffect, useMemo, useState } from 'react';
 import { prefetchGameData } from '../lib/clientData';
 import { applyPreferences, installButtonSounds } from '../lib/clientPreferences';
+import { BastionPanel } from './BastionPanel';
 import { CharacterCreation } from './CharacterCreation';
 import { CombatPanel } from './CombatPanel';
 import { CraftingPanel } from './CraftingPanel';
@@ -40,7 +41,7 @@ export function GameHome(){
  const c=snapshot.character,realm=realmLabels[c.current_realm_id]??{name:c.current_realm_id,description:'Una región desconocida del Nexo espera ser explorada.'};
  const quick=[['progression','Atributos',Brain],['profession-tree','Talentos',Sparkles],['crafting','Crafting',Hammer],['endgame','Endgame',Crown],['events','Eventos',CalendarDays],['battlepass','Pase',Trophy],['shop','Tienda',ShoppingBag],['market','Mercado',Coins],['arena','Arena',Medal],['skills','Habilidades',WandSparkles],['realms','Reinos',MapIcon],['rankings','Rankings',BarChart3],['referrals','Referidos',UserPlus],['earn','Earn',Sparkles],['codex','Codex',BookOpen],['achievements','Logros',Crown],['professions','Profesiones',Hammer],['daily','Diario',Gift],['companions','Compañeros',PawPrint],['settings','Ajustes',SlidersHorizontal]] as const;
  const premiumCredits=resourceMap.get('premium_credits')??0;
- const specialPanel=['adventure','progression','profession-tree','crafting','endgame','inventory','settings','clan','events','battlepass','referrals'].includes(activeNav);
+ const specialPanel=['adventure','bastion','progression','profession-tree','crafting','endgame','inventory','settings','clan','events','battlepass','referrals'].includes(activeNav);
  return <main className={`game-shell class-${c.class_id}`}>
   <NetworkStatus/><OnboardingCoach snapshot={snapshot} onNavigate={setActiveNav}/><div className="ambient ambient-one"/><div className="ambient ambient-two"/>
   <header className="topbar"><div className={`avatar-frame avatar-${c.class_id}`}><CircleUserRound size={28}/></div><div className="identity"><span className="eyebrow">NIVEL {c.level} · {classLabels[c.class_id]??c.class_id}</span><strong>{c.name}</strong>{snapshot.clan&&<small className="home-clan-tag">[{snapshot.clan.tag}] {snapshot.clan.name}</small>}</div><div className="power"><Crown size={15}/><span>{Number(c.power).toLocaleString()}</span></div></header>
@@ -52,6 +53,7 @@ export function GameHome(){
   <section className="quick-access"><div className="quick-title"><span className="eyebrow">MUNDO Y SISTEMAS</span><h2>Sistemas del Nexo</h2></div><div className="quick-grid">{quick.map(([id,label,Icon])=><button key={id} onClick={()=>setActiveNav(id)}><Icon/><span>{label}</span></button>)}</div></section>
   <section className="section-block world-card panel"><div><span className="eyebrow">MAPA DEL NEXO</span><h2>9 reinos conectados</h2><p>Viaja entre regiones sin perder clan, Earn, Pase, referidos, equipo ni recursos.</p></div><button onClick={()=>setActiveNav('realms')}><MapIcon size={18}/>ABRIR MAPA COMPLETO</button></section>
   <CombatPanel active={activeNav} snapshot={snapshot} onClose={()=>setActiveNav('home')} onSnapshot={setSnapshot}/>
+  <BastionPanel active={activeNav} snapshot={snapshot} onClose={()=>setActiveNav('home')} onSnapshot={setSnapshot}/>
   <ProgressionPanel active={activeNav} snapshot={snapshot} onClose={()=>setActiveNav('home')} onSnapshot={setSnapshot}/>
   <CraftingPanel active={activeNav} snapshot={snapshot} onClose={()=>setActiveNav('home')} onSnapshot={setSnapshot}/>
   <EndgamePanel active={activeNav} snapshot={snapshot} onClose={()=>setActiveNav('home')} onSnapshot={setSnapshot}/>
