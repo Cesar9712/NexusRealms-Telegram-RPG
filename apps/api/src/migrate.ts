@@ -14,6 +14,7 @@ const migrations = [
   '006_progression_triggers.sql',
   '007_gameplay_completeness.sql',
   '008_deep_progression.sql',
+  '009_leveling_professions.sql',
 ] as const;
 
 try {
