@@ -20,12 +20,35 @@ function enemyAtk(row:any):CombatStats{return{physicalAttack:n(row.enemy_attack)
 function applySkillEffects(skillEffects:Effect[],playerEffects:Effect[],enemyEffects:Effect[],sourcePower:number){for(const e of skillEffects){if(['shield','attack_up','evasion_up','block_up'].includes(e.type))addEffect(playerEffects,e,sourcePower);else if(['bleed','burn','poison','defense_down','magic_resist_down','freeze','stun','silence','damage_taken_up'].includes(e.type))addEffect(enemyEffects,e,sourcePower);}}
 
 export function registerAdvancedCombatRoutes(app:Hono,sql:Sql,requirePlayerId:RequirePlayerId){
+ app.get('/v1/combat/active',async c=>{
+  let p:string;try{p=await requirePlayerId(c.req.header('authorization'))}catch{return c.json({error:'UNAUTHORIZED'},401)}
+  const [combat]=await sql`select s.*,e.name_es enemy_name_es,e.name_en enemy_name_en,e.max_hp enemy_max_hp,e.visual_key,e.abilities,e.tier from game.combat_sessions s join game.characters ch on ch.id=s.character_id left join game.enemy_definitions e on e.id=s.enemy_id where ch.player_id=${p} and s.state='active' order by s.started_at desc limit 1`;
+  if(!combat)return c.json({combat:null,enemy:null,events:[],serverTime:new Date().toISOString()});
+  const events=await sql`select * from game.combat_events where combat_id=${combat.id} order by id`;
+  return c.json({combat,enemy:{id:combat.enemy_id,name_es:combat.enemy_name_es,name_en:combat.enemy_name_en,max_hp:combat.enemy_max_hp,visual_key:combat.visual_key,abilities:combat.abilities,tier:combat.tier},events,serverTime:new Date().toISOString()});
+ });
+
  app.post('/v1/combat/start',async c=>{
   let p:string;try{p=await requirePlayerId(c.req.header('authorization'))}catch{return c.json({error:'UNAUTHORIZED'},401)}const body=await c.req.json().catch(()=>({}));const requested=body.enemyId?String(body.enemyId):null;
   const out=await sql.begin(async tx=>{const r=await receipt(tx,p,'combat.start',c.req.header('idempotency-key'));if(r.duplicate)return{duplicate:true,response:r.response};const [ch]=await tx`select * from game.characters where player_id=${p} for update`;if(!ch)throw new Error('CHARACTER_REQUIRED');const [active]=await tx`select id from game.combat_sessions where character_id=${ch.id} and state='active' limit 1`;if(active)throw new Error('COMBAT_ALREADY_ACTIVE');const [regen]=await tx`select game.regenerated_value(${ch.hp},${ch.hp_max},${ch.hp_regen_anchor},120,now()) hp,game.regenerated_value(${ch.mp},${ch.mp_max},${ch.mp_regen_anchor},90,now()) mp,game.regenerated_value(${ch.energy},${ch.energy_max},${ch.energy_regen_anchor},180,now()) energy`;if(n(regen.energy)<1)throw new Error('NO_ENERGY');let enemies:any[];if(requested)enemies=await tx`select * from game.enemy_definitions where id=${requested} and realm_id=${ch.current_realm_id} and enabled`;else enemies=await tx`select * from game.enemy_definitions where realm_id=${ch.current_realm_id} and enabled order by abs(level-${ch.level}),case tier when 'champion' then 0 when 'elite' then 1 else 2 end,random() limit 1`;const enemy=enemies[0];if(!enemy)throw new Error('ENEMY_NOT_FOUND');await tx`update game.characters set hp=${n(regen.hp)},mp=${n(regen.mp)},energy=${n(regen.energy)-1},energy_regen_anchor=now(),updated_at=now() where id=${ch.id}`;const [combat]=await tx`insert into game.combat_sessions(character_id,enemy_id,player_hp,player_mp,enemy_hp) values(${ch.id},${enemy.id},${n(regen.hp)},${n(regen.mp)},${enemy.max_hp}) returning *`;await tx`insert into game.combat_events(combat_id,turn_number,actor,event_type,payload) values(${combat.id},1,'system','combat_started',${tx.json({enemyId:enemy.id,tier:enemy.tier})})`;const response={combat,enemy,regeneration:{hp:n(regen.hp),mp:n(regen.mp),energy:n(regen.energy)-1}};await tx`update game.action_receipts set response=${tx.json(response)} where id=${r.id}`;return{duplicate:false,response};}).catch((e:Error)=>({error:e.message}));if('error'in out)return c.json({error:out.error},409);return c.json(out,201);
  });
 
  app.get('/v1/combat/:combatId',async c=>{let p:string;try{p=await requirePlayerId(c.req.header('authorization'))}catch{return c.json({error:'UNAUTHORIZED'},401)}const id=c.req.param('combatId');const [combat]=await sql`select s.*,e.name_es enemy_name_es,e.name_en enemy_name_en,e.max_hp enemy_max_hp,e.visual_key,e.abilities,e.tier from game.combat_sessions s join game.characters ch on ch.id=s.character_id left join game.enemy_definitions e on e.id=s.enemy_id where s.id=${id} and ch.player_id=${p}`;if(!combat)return c.json({error:'COMBAT_NOT_FOUND'},404);const events=await sql`select * from game.combat_events where combat_id=${id} order by id`;return c.json({combat,events});});
+
+ app.post('/v1/combat/:combatId/abandon',async c=>{
+  let p:string;try{p=await requirePlayerId(c.req.header('authorization'))}catch{return c.json({error:'UNAUTHORIZED'},401)}const combatId=c.req.param('combatId');
+  const out=await sql.begin(async tx=>{
+   const r=await receipt(tx,p,'combat.abandon',c.req.header('idempotency-key'));if(r.duplicate)return{duplicate:true,response:r.response};
+   const [row]=await tx`select s.*,ch.hp_max,ch.mp_max from game.combat_sessions s join game.characters ch on ch.id=s.character_id where s.id=${combatId} and ch.player_id=${p} for update`;
+   if(!row)throw new Error('COMBAT_NOT_FOUND');if(row.state!=='active')throw new Error('COMBAT_FINISHED');
+   const hp=Math.max(0,Math.min(n(row.player_hp),n(row.hp_max))),mp=Math.max(0,Math.min(n(row.player_mp),n(row.mp_max)));
+   await tx`update game.characters set hp=${hp},mp=${mp},hp_regen_anchor=now(),mp_regen_anchor=now(),updated_at=now() where id=${row.character_id}`;
+   const [updated]=await tx`update game.combat_sessions set state='abandoned',finished_at=now(),updated_at=now() where id=${combatId} returning *`;
+   await tx`insert into game.combat_events(combat_id,turn_number,actor,event_type,payload) values(${combatId},${n(row.turn_number)},'player','combat_abandoned','{}'::jsonb)`;
+   const response={combat:updated};await tx`update game.action_receipts set response=${tx.json(response)} where id=${r.id}`;return{duplicate:false,response};
+  }).catch((e:Error)=>({error:e.message}));
+  if('error'in out)return c.json({error:out.error},out.error==='COMBAT_NOT_FOUND'?404:409);return c.json(out);
+ });
 
  app.post('/v1/combat/:combatId/action',async c=>{
   let p:string;try{p=await requirePlayerId(c.req.header('authorization'))}catch{return c.json({error:'UNAUTHORIZED'},401)}const combatId=c.req.param('combatId');const body=await c.req.json().catch(()=>({}));const skillId=body.skillId?String(body.skillId):null;
