@@ -21,6 +21,7 @@ const migrations = [
   '013_equipment_power.sql',
   '014_performance_indexes.sql',
   '015_combat_loot.sql',
+  '016_clan_raid_rewards.sql',
 ] as const;
 
 try {
