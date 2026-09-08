@@ -6,6 +6,7 @@ import './modules.css';
 import './extras.css';
 import './systems.css';
 import './admin.css';
+import './premium-theme.css';
 
 export const metadata: Metadata = {
   title: 'Nexus Realms: Telegram Legends',
