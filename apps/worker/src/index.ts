@@ -2,23 +2,30 @@ import { createServer } from 'node:http';
 import postgres from 'postgres';
 import { z } from 'zod';
 
-const Env=z.object({
-  DATABASE_URL:z.string().min(1),
-  TELEGRAM_BOT_TOKEN:z.string().min(20),
-  WORKER_INTERVAL_SECONDS:z.coerce.number().int().min(30).default(60),
-  PORT:z.coerce.number().int().positive().default(3002),
-}).parse(process.env);
+const Env=z.object({DATABASE_URL:z.string().min(1),TELEGRAM_BOT_TOKEN:z.string().min(20),WORKER_INTERVAL_SECONDS:z.coerce.number().int().min(30).default(60),PORT:z.coerce.number().int().positive().default(3002)}).parse(process.env);
 const sql=postgres(Env.DATABASE_URL,{max:4,idle_timeout:20});
 const owner=`worker-${process.pid}`;
 
-async function lease(key:string,seconds:number){const rows=await sql`
- insert into game.worker_leases(key,owner,expires_at) values(${key},${owner},now()+(${seconds}||' seconds')::interval)
- on conflict(key) do update set owner=excluded.owner,expires_at=excluded.expires_at,updated_at=now()
- where game.worker_leases.expires_at<=now() or game.worker_leases.owner=${owner}
- returning key
-`;return Boolean(rows[0]);}
-
+async function lease(key:string,seconds:number){const rows=await sql`insert into game.worker_leases(key,owner,expires_at) values(${key},${owner},now()+(${seconds}||' seconds')::interval) on conflict(key) do update set owner=excluded.owner,expires_at=excluded.expires_at,updated_at=now() where game.worker_leases.expires_at<=now() or game.worker_leases.owner=${owner} returning key`;return Boolean(rows[0]);}
 async function telegram(chatId:string|number,text:string){const res=await fetch(`https://api.telegram.org/bot${Env.TELEGRAM_BOT_TOKEN}/sendMessage`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,text,parse_mode:'HTML',disable_notification:true})});if(!res.ok)throw new Error(`TELEGRAM_${res.status}`);}
+
+async function advanceLiveOps(){
+ await sql.begin(async tx=>{
+  await tx`update game.event_instances set status='active' where status='scheduled' and starts_at<=now() and ends_at>now()`;
+  await tx`update game.event_instances set status='finished' where status in ('scheduled','active') and ends_at<=now()`;
+  const wars=await tx`select id,clan_a,clan_b from game.clan_wars where status='active' and ends_at<=now() for update`;
+  for(const war of wars){
+   const [settled]=await tx`select game.settle_clan_war(${war.id}) result`;
+   const result=(settled?.result??{}) as Record<string,unknown>;
+   for(const clanId of [war.clan_a,war.clan_b]){
+    const members=await tx`select player_id from game.clan_members where clan_id=${clanId}`;
+    const winner=result.winnerClanId?String(result.winnerClanId):null;
+    const outcome=winner===null?'draw':winner===String(clanId)?'win':'loss';
+    for(const member of members)await tx`insert into game.player_notifications(player_id,kind,payload,dedupe_key) values(${member.player_id},'clan_war_finished',${tx.json({warId:war.id,outcome,scoreA:result.scoreA,scoreB:result.scoreB})},${`clan-war:${war.id}:${member.player_id}`}) on conflict do nothing`;
+   }
+  }
+ });
+}
 
 async function materializeDueNotifications(){
  await sql.begin(async tx=>{
@@ -37,26 +44,18 @@ async function deliverNotifications(){
  const rows=await sql`select n.id,n.kind,n.payload,p.telegram_user_id,p.notification_preferences from game.player_notifications n join game.players p on p.id=n.player_id where n.delivered_at is null and n.deliver_after<=now() order by n.created_at limit 50`;
  for(const row of rows){
   const prefs=(row.notification_preferences??{}) as Record<string,unknown>;if(prefs[row.kind]===false){await sql`update game.player_notifications set delivered_at=now() where id=${row.id}`;continue;}
-  const payload=row.payload??{};let text='⚔️ <b>Nexus Realms</b>\n';
-  if(row.kind==='bastion_complete')text+=`🏰 ${payload.name??payload.building} alcanzó nivel ${payload.level}.`;
-  else if(row.kind==='craft_ready')text+='🔨 Tu fabricación ha terminado y está lista para reclamar.';
-  else if(row.kind==='energy_full')text+='⚡ Tu energía está completa.';
-  else text+='Tienes una nueva actualización en el juego.';
+  const payload=row.payload??{};let text='<b>Nexus Realms</b>\n';
+  if(row.kind==='bastion_complete')text+=`${payload.name??payload.building} alcanzó nivel ${payload.level}.`;
+  else if(row.kind==='craft_ready')text+='Tu fabricación terminó y está lista para reclamar.';
+  else if(row.kind==='energy_full')text+='Tu energía está completa.';
+  else if(row.kind==='clan_raid_reward')text+=`La raid del clan terminó. Revisa tu recompensa${payload.clanCoins?` de ${payload.clanCoins} monedas de clan`:''}.`;
+  else if(row.kind==='clan_war_finished')text+=payload.outcome==='win'?'Tu clan ganó la guerra. Revisa la tesorería y el ranking.':payload.outcome==='draw'?'La guerra de clan terminó en empate.':'La guerra de clan terminó. Tu clan recibió recompensa de participación.';
+  else text+='Tienes una nueva actualización disponible dentro del juego.';
   try{await telegram(row.telegram_user_id,text);await sql`update game.player_notifications set delivered_at=now() where id=${row.id}`;}catch(error){console.error('notification delivery failed',row.id,error);}
  }
 }
 
-async function run(){if(!(await lease('main-loop',Math.max(90,Env.WORKER_INTERVAL_SECONDS*2))))return;const [job]=await sql`insert into game.job_runs(job_name) values('main-loop') returning id`;try{await materializeDueNotifications();await refreshRankings();await deliverNotifications();await sql`update game.job_runs set status='success',finished_at=now() where id=${job.id}`;}catch(error){console.error(error);await sql`update game.job_runs set status='failed',finished_at=now(),details=${sql.json({error:error instanceof Error?error.message:String(error)})} where id=${job.id}`;}}
+async function run(){if(!(await lease('main-loop',Math.max(90,Env.WORKER_INTERVAL_SECONDS*2))))return;const[job]=await sql`insert into game.job_runs(job_name) values('main-loop') returning id`;try{await advanceLiveOps();await materializeDueNotifications();await refreshRankings();await deliverNotifications();await sql`update game.job_runs set status='success',finished_at=now() where id=${job.id}`;}catch(error){console.error(error);await sql`update game.job_runs set status='failed',finished_at=now(),details=${sql.json({error:error instanceof Error?error.message:String(error)})} where id=${job.id}`;}}
 
-createServer((req,res)=>{
-  if(req.url==='/health'){
-    res.writeHead(200,{'content-type':'application/json'});
-    res.end(JSON.stringify({ok:true,service:'nexusrealms-worker',serverTime:new Date().toISOString()}));
-    return;
-  }
-  res.writeHead(404,{'content-type':'application/json'});
-  res.end(JSON.stringify({error:'NOT_FOUND'}));
-}).listen(Env.PORT,'0.0.0.0',()=>console.log(`Worker health server listening on :${Env.PORT}`));
-
-void run();
-setInterval(()=>void run(),Env.WORKER_INTERVAL_SECONDS*1000);
+createServer((req,res)=>{if(req.url==='/health'){res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({ok:true,service:'nexusrealms-worker',serverTime:new Date().toISOString()}));return;}res.writeHead(404,{'content-type':'application/json'});res.end(JSON.stringify({error:'NOT_FOUND'}));}).listen(Env.PORT,'0.0.0.0',()=>console.log(`Worker health server listening on :${Env.PORT}`));
+void run();setInterval(()=>void run(),Env.WORKER_INTERVAL_SECONDS*1000);
