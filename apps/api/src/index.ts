@@ -12,6 +12,9 @@ import { registerExtraRoutes } from './extraRoutes.js';
 import { registerProgressionRoutes } from './progressionRoutes.js';
 import { registerCraftingEnhancementRoutes } from './craftingEnhancementRoutes.js';
 import { registerEndgameRoutes } from './endgameRoutes.js';
+import { registerItemRoutes } from './itemRoutes.js';
+import { registerOperationsRoutes } from './operationsRoutes.js';
+import { installSecurityMiddleware } from './securityMiddleware.js';
 
 const EnvSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().min(20),
@@ -45,6 +48,7 @@ const env = EnvSchema.parse(process.env);
 const sql = postgres(env.DATABASE_URL, { max: 10, idle_timeout: 20 });
 const sessionKey = new TextEncoder().encode(env.SESSION_SECRET);
 const app = new Hono();
+installSecurityMiddleware(app);
 
 app.use('/v1/*', cors({
   origin: env.APP_URL,
@@ -93,6 +97,8 @@ app.post('/v1/auth/telegram', async (c) => {
     if (!player || player.is_banned) throw new Error('PLAYER_BLOCKED');
     await tx`insert into game.earn_balances (player_id) values (${player.id}) on conflict do nothing`;
     await tx`insert into game.referral_profiles (player_id, referral_code) values (${player.id}, lower(substr(replace(${player.id}::text, '-', ''), 1, 10))) on conflict do nothing`;
+    await tx`insert into game.player_game_settings(player_id,language) values(${player.id},${verified.user.language_code?.startsWith('en')?'en':'es'}) on conflict do nothing`;
+    await tx`insert into game.analytics_events(player_id,event_name,properties) values(${player.id},'session_start',${tx.json({source:'telegram'})})`;
     const referralCode = verified.startParam?.startsWith('ref_') ? verified.startParam.slice(4).toLowerCase() : null;
     if (referralCode) { const [referrer] = await tx`select player_id from game.referral_profiles where lower(referral_code)=${referralCode}`; if (referrer && String(referrer.player_id)!==String(player.id)) await tx`insert into game.referral_attributions (referred_player_id, referrer_player_id) values (${player.id},${referrer.player_id}) on conflict (referred_player_id) do nothing`; }
     return { playerId: String(player.id), telegramUserId: Number(player.telegram_user_id) };
@@ -134,6 +140,8 @@ registerExtraRoutes(app,sql,requirePlayerId);
 registerProgressionRoutes(app,sql,requirePlayerId);
 registerCraftingEnhancementRoutes(app,sql,requirePlayerId);
 registerEndgameRoutes(app,sql,requirePlayerId);
+registerItemRoutes(app,sql,requirePlayerId);
+registerOperationsRoutes(app,sql,requirePlayerId);
 registerAdminRoutes(app,sql,requirePlayerId);
 
 serve({fetch:app.fetch,port:env.PORT ?? env.API_PORT},info=>console.log(`Nexus Realms API listening on :${info.port}`));
