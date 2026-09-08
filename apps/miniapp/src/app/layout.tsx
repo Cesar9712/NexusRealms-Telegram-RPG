@@ -16,6 +16,7 @@ import './aaa-polish.css';
 import './endgame.css';
 import './inventory-premium.css';
 import './settings.css';
+import './liveops.css';
 
 export const metadata: Metadata = {
   title: 'Nexus Realms: Telegram Legends',
