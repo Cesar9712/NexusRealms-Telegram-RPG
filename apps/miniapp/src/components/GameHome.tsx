@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { prefetchGameData } from '../lib/clientData';
 import { CharacterCreation } from './CharacterCreation';
 import { CraftingPanel } from './CraftingPanel';
+import { EndgamePanel } from './EndgamePanel';
 import { GameModulePanel } from './GameModulePanel';
 import { ProgressionPanel } from './ProgressionPanel';
 
@@ -70,9 +71,9 @@ export function GameHome(){
  if(status!=='ready'||!snapshot)return <main className="gate-shell"><div className="sigil"/><h1>NEXUS REALMS</h1><p>{status==='telegram-required'?'Abre el juego desde el botón JUGAR de @NexusRealmsLegendsBot.':status==='error'?bootMessage:bootMessage}</p>{status==='error'&&<button className="module-primary" onClick={()=>setBootNonce(n=>n+1)}><RefreshCw size={17}/>REINTENTAR</button>}</main>;
  if(!snapshot.character)return <CharacterCreation onCreated={s=>{setSnapshot(s);window.setTimeout(prefetchGameData,50);}}/>;
  const c=snapshot.character,realm=realmLabels[c.current_realm_id]??{name:c.current_realm_id,description:'Una región desconocida del Nexo espera ser explorada.'};
- const quick=[['progression','Atributos',Brain],['profession-tree','Talentos',Sparkles],['crafting','Crafting',Hammer],['events','Eventos',CalendarDays],['battlepass','Pase',Trophy],['shop','Tienda',ShoppingBag],['market','Mercado',Coins],['arena','Arena',Medal],['skills','Habilidades',WandSparkles],['realms','Reinos',MapIcon],['rankings','Rankings',BarChart3],['referrals','Referidos',UserPlus],['earn','Earn',Sparkles],['codex','Codex',BookOpen],['achievements','Logros',Crown],['professions','Profesiones',Hammer],['daily','Diario',Gift],['companions','Compañeros',PawPrint]] as const;
+ const quick=[['progression','Atributos',Brain],['profession-tree','Talentos',Sparkles],['crafting','Crafting',Hammer],['endgame','Endgame',Crown],['events','Eventos',CalendarDays],['battlepass','Pase',Trophy],['shop','Tienda',ShoppingBag],['market','Mercado',Coins],['arena','Arena',Medal],['skills','Habilidades',WandSparkles],['realms','Reinos',MapIcon],['rankings','Rankings',BarChart3],['referrals','Referidos',UserPlus],['earn','Earn',Sparkles],['codex','Codex',BookOpen],['achievements','Logros',Crown],['professions','Profesiones',Hammer],['daily','Diario',Gift],['companions','Compañeros',PawPrint]] as const;
  const premiumCredits=resourceMap.get('premium_credits')??0;
- const specialPanel=activeNav==='progression'||activeNav==='profession-tree'||activeNav==='crafting';
+ const specialPanel=activeNav==='progression'||activeNav==='profession-tree'||activeNav==='crafting'||activeNav==='endgame';
  return <main className={`game-shell class-${c.class_id}`}>
   <div className="ambient ambient-one"/><div className="ambient ambient-two"/>
   <header className="topbar"><div className={`avatar-frame avatar-${c.class_id}`}><CircleUserRound size={28}/></div><div className="identity"><span className="eyebrow">NIVEL {c.level} · {classLabels[c.class_id]??c.class_id}</span><strong>{c.name}</strong>{snapshot.clan&&<small className="home-clan-tag">[{snapshot.clan.tag}] {snapshot.clan.name}</small>}</div><div className="power"><Crown size={15}/><span>{Number(c.power).toLocaleString()}</span></div></header>
@@ -85,6 +86,7 @@ export function GameHome(){
   <section className="section-block world-card panel"><div><span className="eyebrow">MAPA DEL NEXO</span><h2>9 reinos conectados</h2><p>Viaja entre regiones sin perder clan, Earn, Pase, referidos, equipo ni recursos.</p></div><button onClick={()=>setActiveNav('realms')}><MapIcon size={18}/>ABRIR MAPA COMPLETO</button></section>
   <ProgressionPanel active={activeNav} snapshot={snapshot} onClose={()=>setActiveNav('home')} onSnapshot={setSnapshot}/>
   <CraftingPanel active={activeNav} snapshot={snapshot} onClose={()=>setActiveNav('home')} onSnapshot={setSnapshot}/>
+  <EndgamePanel active={activeNav} snapshot={snapshot} onClose={()=>setActiveNav('home')} onSnapshot={setSnapshot}/>
   <GameModulePanel active={specialPanel?'home':activeNav} snapshot={snapshot} onClose={()=>setActiveNav('home')} onSnapshot={setSnapshot}/>
   <nav className="bottom-nav" aria-label="Navegación principal"><button className={activeNav==='home'?'active':''} onClick={()=>setActiveNav('home')}><Shield/><span>Inicio</span></button><button className={activeNav==='adventure'?'active':''} onClick={()=>setActiveNav('adventure')}><Swords/><span>Aventura</span></button><button className={activeNav==='inventory'?'active':''} onClick={()=>setActiveNav('inventory')}><Backpack/><span>Equipo</span></button><button className={activeNav==='bastion'?'active':''} onClick={()=>setActiveNav('bastion')}><Castle/><span>Bastión</span></button><button className={activeNav==='clan'?'active':''} onClick={()=>setActiveNav('clan')}><Users/><span>Clan</span></button></nav>
  </main>;
