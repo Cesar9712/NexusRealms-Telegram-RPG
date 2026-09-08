@@ -10,6 +10,7 @@ import { registerSocialRoutes } from './socialRoutes.js';
 import { registerAdminRoutes } from './adminRoutes.js';
 import { registerExtraRoutes } from './extraRoutes.js';
 import { registerProgressionRoutes } from './progressionRoutes.js';
+import { registerCraftingEnhancementRoutes } from './craftingEnhancementRoutes.js';
 
 const EnvSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().min(20),
@@ -130,6 +131,7 @@ registerGameplayRoutes(app,sql,requirePlayerId,buildSnapshot);
 registerSocialRoutes(app,sql,requirePlayerId);
 registerExtraRoutes(app,sql,requirePlayerId);
 registerProgressionRoutes(app,sql,requirePlayerId);
+registerCraftingEnhancementRoutes(app,sql,requirePlayerId);
 registerAdminRoutes(app,sql,requirePlayerId);
 
 serve({fetch:app.fetch,port:env.PORT ?? env.API_PORT},info=>console.log(`Nexus Realms API listening on :${info.port}`));
