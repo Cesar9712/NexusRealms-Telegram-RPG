@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Activity, Bolt, Flame, Heart, LoaderCircle, Shield, Skull, Sparkles, Swords, Target, X, Zap } from 'lucide-react';
 import type { Snapshot } from './GameHome';
 
@@ -15,8 +15,10 @@ const effectNames:Record<string,string>={bleed:'Sangrado',burn:'Quemadura',poiso
 const effectIcon=(type:string)=>['bleed','burn','poison'].includes(type)?Flame:['shield','block_up'].includes(type)?Shield:['freeze','stun','silence'].includes(type)?Zap:Activity;
 
 export function CombatPanel({active,snapshot,onClose,onSnapshot}:{active:string;snapshot:Snapshot;onClose:()=>void;onSnapshot:(s:Snapshot)=>void}){
- const visible=active==='adventure';const[state,setState]=useState<any>(null),[skills,setSkills]=useState<any[]>([]),[events,setEvents]=useState<any[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState(''),[flash,setFlash]=useState<any>(null);
+ const visible=active==='adventure';
+ const[state,setState]=useState<any>(null),[skills,setSkills]=useState<any[]>([]),[events,setEvents]=useState<any[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState(''),[flash,setFlash]=useState<any>(null);
  const character=snapshot.character;
+ const usable=skills.filter((s:any)=>s.unlocked);
  async function get(path:string){const r=await fetch(`${apiUrl}${path}`,{headers:auth()});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error??'LOAD_FAILED');return j;}
  async function refreshSnapshot(){const r=await fetch(`${apiUrl}/v1/me/snapshot`,{headers:auth()});if(r.ok)onSnapshot(await r.json());}
  async function loadSkills(){try{const j=await get('/v1/skills');setSkills((j.skills??[]).filter((s:any)=>s.unlocked));}catch{}}
@@ -25,7 +27,6 @@ export function CombatPanel({active,snapshot,onClose,onSnapshot}:{active:string;
  async function act(skillId?:string){const combat=state?.combat;if(!combat?.id)return;setBusy(true);setError('');try{const r=await fetch(`${apiUrl}/v1/combat/${combat.id}/action`,{method:'POST',headers:action(),body:JSON.stringify(skillId?{skillId}:{})});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error??'ACTION_ERROR');const response=j.response??j;const log=await get(`/v1/combat/${combat.id}`);setState((old:any)=>({...old,...response,combat:log.combat,enemy:old?.enemy??{name_es:log.combat.enemy_name_es,max_hp:log.combat.enemy_max_hp,tier:log.combat.tier}}));setEvents(log.events??[]);setFlash({player:response.playerEvent,enemy:response.enemyEvent,status:response.statusDamage});window.setTimeout(()=>setFlash(null),700);if(response.combat?.state!=='active')await refreshSnapshot();}catch(e:any){setError(errorText(e.message));}finally{setBusy(false)}}
  if(!visible)return null;
  const combat=state?.combat,enemy=state?.enemy;const cooldowns=(combat?.cooldowns??{}) as Record<string,number>;const playerEffects=Array.isArray(combat?.player_effects)?combat.player_effects:[];const enemyEffects=Array.isArray(combat?.enemy_effects)?combat.enemy_effects:[];
- const usable=useMemo(()=>skills.filter((s:any)=>s.unlocked),[skills]);
  return <section className="module-overlay combat-premium-overlay" aria-label="Combate">
   <header><div><Swords/><span><small>COMBATE DEL NEXO</small><strong>Aventura</strong></span></div><button onClick={onClose}><X/></button></header>
   {error&&<div className="module-error">{error}</div>}
