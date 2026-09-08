@@ -17,6 +17,7 @@ const migrations = [
   '009_leveling_professions.sql',
   '010_clan_creation_credits.sql',
   '011_skill_descriptions.sql',
+  '012_equipment_market_integrity.sql',
 ] as const;
 
 try {
