@@ -14,6 +14,10 @@ const env = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 }).parse(process.env);
 
+const miniAppUrl = new URL(env.TELEGRAM_WEBAPP_URL);
+miniAppUrl.searchParams.set('v', Date.now().toString(36));
+const gameUrl = miniAppUrl.toString();
+
 const webhookSecret = createHash('sha256')
   .update(`nexus-realms-webhook:${env.TELEGRAM_BOT_TOKEN}`)
   .digest('hex');
@@ -23,7 +27,7 @@ const rateBuckets = new Map<number, { count: number; resetAt: number }>();
 
 function gameKeyboard() {
   return new InlineKeyboard()
-    .webApp('⚔️ ENTRAR A NEXUS REALMS', env.TELEGRAM_WEBAPP_URL)
+    .webApp('⚔️ ENTRAR A NEXUS REALMS', gameUrl)
     .row()
     .text('🎒 Perfil', 'profile')
     .text('🏰 Bastión', 'bastion')
@@ -56,7 +60,7 @@ bot.command('start', async (ctx) => {
 });
 
 bot.command('play', async (ctx) => {
-  await ctx.reply('Abre el mundo de Nexus Realms:', { reply_markup: new InlineKeyboard().webApp('JUGAR', env.TELEGRAM_WEBAPP_URL) });
+  await ctx.reply('Abre el mundo de Nexus Realms:', { reply_markup: new InlineKeyboard().webApp('JUGAR', gameUrl) });
 });
 
 bot.command('profile', async (ctx) => {
@@ -64,25 +68,25 @@ bot.command('profile', async (ctx) => {
 });
 
 bot.command('quests', async (ctx) => {
-  await ctx.reply('Historia, misiones diarias, semanales, de clan y eventos están disponibles dentro de la Mini App.', { reply_markup: new InlineKeyboard().webApp('ABRIR MISIONES', env.TELEGRAM_WEBAPP_URL) });
+  await ctx.reply('Historia, misiones diarias, semanales, de clan y eventos están disponibles dentro de la Mini App.', { reply_markup: new InlineKeyboard().webApp('ABRIR MISIONES', gameUrl) });
 });
 
 bot.command('clan', async (ctx) => {
-  await ctx.reply('Abre el juego para gestionar clan, contribuciones, base, raids y guerras.', { reply_markup: new InlineKeyboard().webApp('ABRIR CLAN', env.TELEGRAM_WEBAPP_URL) });
+  await ctx.reply('Abre el juego para gestionar clan, contribuciones, base, raids y guerras.', { reply_markup: new InlineKeyboard().webApp('ABRIR CLAN', gameUrl) });
 });
 
 bot.command('rewards', async (ctx) => {
-  await ctx.reply('Las recompensas se calculan y reclaman en servidor para evitar duplicaciones.', { reply_markup: new InlineKeyboard().webApp('VER RECOMPENSAS', env.TELEGRAM_WEBAPP_URL) });
+  await ctx.reply('Las recompensas se calculan y reclaman en servidor para evitar duplicaciones.', { reply_markup: new InlineKeyboard().webApp('VER RECOMPENSAS', gameUrl) });
 });
 
 bot.command('help', async (ctx) => {
   await ctx.reply('<b>Comandos</b>\n/start — inicio y deep links\n/play — abrir el juego\n/profile — perfil\n/quests — misiones\n/clan — clan\n/rewards — recompensas\n/help — ayuda', { parse_mode: 'HTML' });
 });
 
-bot.callbackQuery('profile', async (ctx) => { await ctx.answerCallbackQuery(); await ctx.reply('Abriendo acceso al perfil persistente.', { reply_markup: new InlineKeyboard().webApp('PERFIL', env.TELEGRAM_WEBAPP_URL) }); });
-bot.callbackQuery('bastion', async (ctx) => { await ctx.answerCallbackQuery(); await ctx.reply('El Bastión usa producción limitada y timers del servidor.', { reply_markup: new InlineKeyboard().webApp('BASTIÓN', env.TELEGRAM_WEBAPP_URL) }); });
-bot.callbackQuery('ranking', async (ctx) => { await ctx.answerCallbackQuery(); await ctx.reply('Rankings globales, de clan, PvP y temporada se muestran dentro del juego.', { reply_markup: new InlineKeyboard().webApp('RANKING', env.TELEGRAM_WEBAPP_URL) }); });
-bot.callbackQuery('clan', async (ctx) => { await ctx.answerCallbackQuery(); await ctx.reply('Clanes con base, raids, progresión y guerras.', { reply_markup: new InlineKeyboard().webApp('CLAN', env.TELEGRAM_WEBAPP_URL) }); });
+bot.callbackQuery('profile', async (ctx) => { await ctx.answerCallbackQuery(); await ctx.reply('Abriendo acceso al perfil persistente.', { reply_markup: new InlineKeyboard().webApp('PERFIL', gameUrl) }); });
+bot.callbackQuery('bastion', async (ctx) => { await ctx.answerCallbackQuery(); await ctx.reply('El Bastión usa producción limitada y timers del servidor.', { reply_markup: new InlineKeyboard().webApp('BASTIÓN', gameUrl) }); });
+bot.callbackQuery('ranking', async (ctx) => { await ctx.answerCallbackQuery(); await ctx.reply('Rankings globales, de clan, PvP y temporada se muestran dentro del juego.', { reply_markup: new InlineKeyboard().webApp('RANKING', gameUrl) }); });
+bot.callbackQuery('clan', async (ctx) => { await ctx.answerCallbackQuery(); await ctx.reply('Clanes con base, raids, progresión y guerras.', { reply_markup: new InlineKeyboard().webApp('CLAN', gameUrl) }); });
 
 bot.catch((error) => console.error('Telegram bot error', error.error));
 
@@ -101,6 +105,7 @@ app.post('/telegram/webhook', async (c) => {
 async function configureBot() {
   const me = await bot.api.getMe();
   console.log('Telegram bot identity', { id: me.id, username: me.username, name: me.first_name });
+  console.log('Mini App launch URL configured', { url: gameUrl.replace(/v=[^&]+/, 'v=<cache-buster>') });
 
   await bot.api.setMyCommands([
     { command: 'start', description: 'Abrir Nexus Realms' },
@@ -116,7 +121,7 @@ async function configureBot() {
     menu_button: {
       type: 'web_app',
       text: 'JUGAR',
-      web_app: { url: env.TELEGRAM_WEBAPP_URL },
+      web_app: { url: gameUrl },
     },
   });
 
