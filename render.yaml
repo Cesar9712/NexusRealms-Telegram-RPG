@@ -1,3 +1,4 @@
+# Blueprint sync marker: refresh cross-service environment references
 services:
   - type: web
     name: nexus-legends-api
