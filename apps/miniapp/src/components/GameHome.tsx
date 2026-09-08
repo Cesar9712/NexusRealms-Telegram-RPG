@@ -2,6 +2,7 @@
 
 import { Backpack, BarChart3, BookOpen, Brain, CalendarDays, Castle, ChevronRight, CircleUserRound, Coins, Crown, Gem, Gift, Hammer, Map as MapIcon, Medal, PawPrint, ScrollText, Shield, ShoppingBag, Sparkles, Swords, Trophy, UserPlus, Users, WandSparkles, Zap } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { prefetchGameData } from '../lib/clientData';
 import { CharacterCreation } from './CharacterCreation';
 import { CraftingPanel } from './CraftingPanel';
 import { GameModulePanel } from './GameModulePanel';
@@ -17,10 +18,10 @@ function meter(value:number,max:number){return `${Math.max(0,Math.min(100,(value
 
 export function GameHome(){
  const [snapshot,setSnapshot]=useState<Snapshot|null>(null),[status,setStatus]=useState<'loading'|'ready'|'error'|'telegram-required'>('loading'),[activeNav,setActiveNav]=useState('home');
- useEffect(()=>{const webApp=window.Telegram?.WebApp;webApp?.ready();webApp?.expand();webApp?.setHeaderColor?.('#07060a');webApp?.setBackgroundColor?.('#07060a');const initData=webApp?.initData;if(!initData){if(process.env.NODE_ENV==='development'){setSnapshot(previewSnapshot);setStatus('ready')}else setStatus('telegram-required');return;}fetch(`${apiUrl}/v1/auth/telegram`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({initData})}).then(async r=>{if(!r.ok)throw new Error('AUTH_FAILED');return r.json()}).then((d:{token:string;snapshot:Snapshot})=>{sessionStorage.setItem('nr_session',d.token);setSnapshot(d.snapshot);setStatus('ready')}).catch(()=>setStatus('error'));},[]);
+ useEffect(()=>{const webApp=window.Telegram?.WebApp;webApp?.ready();webApp?.expand();webApp?.setHeaderColor?.('#07060a');webApp?.setBackgroundColor?.('#07060a');const initData=webApp?.initData;if(!initData){if(process.env.NODE_ENV==='development'){setSnapshot(previewSnapshot);setStatus('ready')}else setStatus('telegram-required');return;}fetch(`${apiUrl}/v1/auth/telegram`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({initData})}).then(async r=>{if(!r.ok)throw new Error('AUTH_FAILED');return r.json()}).then((d:{token:string;snapshot:Snapshot})=>{sessionStorage.setItem('nr_session',d.token);setSnapshot(d.snapshot);setStatus('ready');if(d.snapshot.character)prefetchGameData();}).catch(()=>setStatus('error'));},[]);
  const resourceMap=useMemo(()=>new globalThis.Map(snapshot?.resources.map(r=>[r.resource_code,Number(r.amount)])??[]),[snapshot]);
  if(status!=='ready'||!snapshot)return <main className="gate-shell"><div className="sigil"/><h1>NEXUS REALMS</h1><p>{status==='telegram-required'?'Abre el juego desde Telegram para autenticar tu héroe.':status==='error'?'No se pudo validar la sesión. Vuelve a abrir el juego desde Telegram.':'Sincronizando el reino…'}</p></main>;
- if(!snapshot.character)return <CharacterCreation onCreated={setSnapshot}/>;
+ if(!snapshot.character)return <CharacterCreation onCreated={s=>{setSnapshot(s);window.setTimeout(prefetchGameData,50);}}/>;
  const c=snapshot.character,realm=realmLabels[c.current_realm_id]??{name:c.current_realm_id,description:'Una región desconocida del Nexo espera ser explorada.'};
  const quick=[['progression','Atributos',Brain],['profession-tree','Talentos',Sparkles],['crafting','Crafting',Hammer],['events','Eventos',CalendarDays],['battlepass','Pase',Trophy],['shop','Tienda',ShoppingBag],['market','Mercado',Coins],['arena','Arena',Medal],['skills','Habilidades',WandSparkles],['realms','Reinos',MapIcon],['rankings','Rankings',BarChart3],['referrals','Referidos',UserPlus],['earn','Earn',Sparkles],['codex','Codex',BookOpen],['achievements','Logros',Crown],['professions','Profesiones',Hammer],['daily','Diario',Gift],['companions','Compañeros',PawPrint]] as const;
  const premiumCredits=resourceMap.get('premium_credits')??0;
