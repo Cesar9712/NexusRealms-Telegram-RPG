@@ -1,0 +1,36 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import { Backpack, ChevronDown, Hammer, Lock, Package, Search, Shield, Star, Unlock, X } from 'lucide-react';
+import type { Snapshot } from './GameHome';
+
+const apiUrl=process.env.NEXT_PUBLIC_API_URL??'http://localhost:3001';
+const auth=()=>({authorization:`Bearer ${sessionStorage.getItem('nr_session')??''}`});
+const action=()=>({...auth(),'content-type':'application/json','idempotency-key':crypto.randomUUID()});
+const slots:Record<string,string>={weapon:'weapon',armor:'chest',helmet:'helmet',boots:'boots',ring:'ring',necklace:'necklace',cape:'cape',artifact:'artifact'};
+const equipmentTypes=new Set(Object.keys(slots));
+const rarityOrder:Record<string,number>={common:1,uncommon:2,rare:3,epic:4,legendary:5,mythic:6,ancestral:7,divine:8};
+const errors:Record<string,string>={ITEM_NOT_FOUND:'Ese objeto ya no está disponible.',ITEM_NOT_ENHANCEABLE:'Ese objeto no se puede mejorar.',ITEM_MAX_ENHANCEMENT:'El objeto ya alcanzó +15.',INSUFFICIENT_GOLD:'No tienes suficiente oro.',INSUFFICIENT_MATERIALS:'Necesitas más mineral.',ITEM_LEVEL_REQUIRED:'Tu nivel todavía es insuficiente.',ITEM_LISTED_ON_MARKET:'Retira el objeto del mercado antes de equiparlo.',ITEM_LOCKED:'El objeto está protegido.'};
+const human=(v:string)=>errors[v]??v.replaceAll('_',' ').toLowerCase();
+function stats(value:any){return value&&typeof value==='object'?Object.entries(value).filter(([,v])=>Number(v)!==0).slice(0,4):[];}
+function group(type:string,setId?:string|null){if(equipmentTypes.has(type))return'equipment';if(type==='consumable')return'consumables';if(type==='material'||type==='rune')return'materials';if(setId||type==='artifact')return'collections';return'objects';}
+
+export function InventoryPanel({active,snapshot,onClose,onSnapshot}:{active:string;snapshot:Snapshot;onClose:()=>void;onSnapshot:(s:Snapshot)=>void}){
+ const visible=active==='inventory';const [data,setData]=useState<any>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[query,setQuery]=useState(''),[tab,setTab]=useState('equipment'),[sort,setSort]=useState('favorite');
+ async function load(){if(!visible)return;setError('');try{const r=await fetch(`${apiUrl}/v1/inventory/advanced`,{headers:auth()});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error??'LOAD_FAILED');setData(j);}catch(e:any){setError(human(e.message));}}
+ async function refresh(){const r=await fetch(`${apiUrl}/v1/me/snapshot`,{headers:auth()});if(r.ok)onSnapshot(await r.json());}
+ useEffect(()=>{void load();},[active]);
+ async function post(path:string,body:any={}){setBusy(true);setError('');try{const r=await fetch(`${apiUrl}${path}`,{method:'POST',headers:action(),body:JSON.stringify(body)});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error??'ACTION_FAILED');await Promise.all([load(),refresh()]);}catch(e:any){setError(human(e.message));}finally{setBusy(false)}}
+ if(!visible)return null;
+ const items=useMemo(()=>{const source=[...(data?.items??[])];const q=query.trim().toLowerCase();return source.filter((i:any)=>group(i.item_type,i.set_id)===tab&&(!q||`${i.name_es} ${i.rarity} ${i.item_type} ${i.set_id??''}`.toLowerCase().includes(q))).sort((a:any,b:any)=>{if(sort==='level')return Number(b.min_level)-Number(a.min_level);if(sort==='rarity')return (rarityOrder[b.rarity]??0)-(rarityOrder[a.rarity]??0);if(sort==='enhance')return Number(b.enhancement_level)-Number(a.enhancement_level);return Number(b.favorite)-Number(a.favorite)||Number(Boolean(b.equipped_slot))-Number(Boolean(a.equipped_slot));});},[data,query,tab,sort]);
+ const resourceGroups={materials:snapshot.resources.filter(r=>!['gold','crystals','premium_credits','clan_coins'].includes(r.resource_code)),currencies:snapshot.resources.filter(r=>['gold','crystals','premium_credits','clan_coins'].includes(r.resource_code))};
+ return <section className="module-overlay inventory-premium-overlay" aria-label="Inventario">
+  <header><div><Backpack/><span><small>MOCHILA DEL HÉROE</small><strong>Inventario</strong></span></div><button onClick={onClose}><X/></button></header>
+  {error&&<div className="module-error">{error}</div>}
+  <div className="inventory-summary"><div><b>{data?.items?.length??0}</b><span>objetos</span></div><div><b>{(data?.items??[]).filter((i:any)=>i.equipped_slot).length}</b><span>equipados</span></div><div><b>{(data?.items??[]).filter((i:any)=>i.favorite).length}</b><span>favoritos</span></div><div><b>{(data?.items??[]).filter((i:any)=>i.locked).length}</b><span>protegidos</span></div></div>
+  <div className="inventory-tabs">{[['equipment','Equipo'],['consumables','Consumibles'],['materials','Materiales'],['objects','Objetos'],['collections','Colecciones']].map(([id,label])=><button className={tab===id?'active':''} key={id} onClick={()=>setTab(id)}>{label}</button>)}</div>
+  <div className="inventory-tools"><label><Search/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar objeto, rareza o set"/></label><label className="inventory-sort"><ChevronDown/><select value={sort} onChange={e=>setSort(e.target.value)}><option value="favorite">Favoritos</option><option value="rarity">Rareza</option><option value="level">Nivel</option><option value="enhance">Mejora</option></select></label></div>
+  {tab==='materials'&&<div className="resource-vault">{resourceGroups.materials.map(r=><article key={r.resource_code}><Package/><span>{r.resource_code.replaceAll('_',' ')}</span><b>{Number(r.amount).toLocaleString()}</b></article>)}</div>}
+  <div className="inventory-item-list">{items.length===0?<div className="empty-state"><Backpack/><b>No hay objetos en esta categoría</b><span>Explora, derrota enemigos, fabrica objetos o cambia el filtro.</span></div>:items.map((i:any)=>{const slot=slots[i.item_type];return <article className={`inventory-item rarity-${i.rarity} ${i.equipped_slot?'equipped':''}`} key={i.id}><div className="inventory-item-glyph"><Shield/></div><div className="inventory-item-copy"><div className="inventory-name"><b>{i.name_es}{Number(i.enhancement_level)>0?` +${i.enhancement_level}`:''}</b><span>{i.rarity} · Nv. {i.min_level}</span></div><div className="inventory-stat-row">{stats(i.stats).map(([k,v])=><span key={k}>{k.replaceAll('_',' ')} +{String(v)}</span>)}</div>{i.set_id&&<small>Set: {i.set_id.replaceAll('-',' ')}</small>}{i.market_listed&&<small className="market-note">Publicado en mercado</small>}</div><div className="inventory-actions"><button title="Favorito" className={i.favorite?'active':''} disabled={busy} onClick={()=>post(`/v1/inventory/${i.id}/favorite`,{favorite:!i.favorite})}><Star/></button><button title="Proteger" className={i.locked?'active':''} disabled={busy} onClick={()=>post(`/v1/inventory/${i.id}/lock`,{locked:!i.locked})}>{i.locked?<Lock/>:<Unlock/>}</button>{slot&&!i.equipped_slot&&!i.market_listed&&<button title="Equipar" disabled={busy||Number(snapshot.character?.level??0)<Number(i.min_level)} onClick={()=>post(`/v1/inventory/${i.id}/equip`,{slot})}><Shield/></button>}{slot&&<button title="Mejorar" disabled={busy||Number(i.enhancement_level)>=15||i.market_listed} onClick={()=>post(`/v1/inventory/${i.id}/enhance`)}><Hammer/></button>}</div>{i.equipped_slot&&<em className="equipped-badge">EQUIPADO</em>}</article>})}</div>
+ </section>;
+}
