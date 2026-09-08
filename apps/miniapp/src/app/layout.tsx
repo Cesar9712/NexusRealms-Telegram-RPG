@@ -4,6 +4,7 @@ import './globals.css';
 import './creation.css';
 import './modules.css';
 import './extras.css';
+import './systems.css';
 import './admin.css';
 
 export const metadata: Metadata = {
