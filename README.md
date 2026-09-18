@@ -1,7 +1,5 @@
 # Nexus Realms: Telegram Legends
 
-[![Powered by RustChain](https://img.shields.io/badge/Powered%20by-RustChain-orange)](https://rustchain.org)
-
 A server-authoritative dark-fantasy/anime mobile RPG built to live inside Telegram through a Bot + Telegram Mini App architecture.
 
 ## Workspace
