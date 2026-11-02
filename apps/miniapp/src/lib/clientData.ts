@@ -28,7 +28,8 @@ function requestHeaders(input:RequestInfo|URL,init?:RequestInit){
 function mutationKey(input:RequestInfo|URL,init:RequestInit|undefined,method:string,url:string,headers:string){
   // Request bodies are streams and FormData/Blob values cannot be compared safely.
   // Never coalesce mutations whose exact bodies are unknown.
-  if(input instanceof Request&&init?.body===undefined)return null;
+  // Abortable mutations must not share a network request: one caller may cancel independently.
+  if(init?.signal||input instanceof Request)return null;
   if(init?.body!=null&&typeof init.body!=='string')return null;
   return JSON.stringify([method,url,headers,init?.body??'']);
 }
@@ -43,6 +44,11 @@ export function installFastFetchCache(){
     const url=requestUrl(input),method=String(init?.method??(input instanceof Request?input.method:'GET')).toUpperCase();
     if(!url.startsWith(apiUrl)||!url.includes('/v1/'))return nativeFetch(input,init);
     const headers=requestHeaders(input,init);
+    const signal=init?.signal??(input instanceof Request?input.signal:undefined);
+    const cacheMode=init?.cache??(input instanceof Request?input.cache:undefined);
+    // Fetch cancellation and explicit cache policies must retain native semantics.
+    // Request objects always carry a signal, so do not coalesce or cache them.
+    if(method==='GET'&&(signal||['no-store','no-cache','reload'].includes(cacheMode??'')))return nativeFetch(input,init);
 
     if(method!=='GET'){
       // Reads can become stale both when a mutation starts and when it settles.
