@@ -8,12 +8,23 @@ const pending=new Map<string,Promise<Payload>>();
 const mutationPending=new Map<string,Promise<Payload>>();
 let installed=false;
 let networkPending=0;
+let cacheEpoch=0;
 
 function token(){return sessionStorage.getItem('nr_session')??'';}
-function authFrom(init?:RequestInit){const h=new Headers(init?.headers);return h.get('authorization')??'';}
 function requestUrl(input:RequestInfo|URL){return typeof input==='string'?input:input instanceof URL?input.toString():input.url;}
 function payloadToResponse(p:Payload){return new Response(p.body,{status:p.status,statusText:p.statusText,headers:p.headers});}
-function bodyKey(init?:RequestInit){const body=init?.body;if(body==null)return'';if(typeof body==='string')return body.slice(0,1200);return Object.prototype.toString.call(body);}
+function requestHeaders(input:RequestInfo|URL,init?:RequestInit){
+  const headers=new Headers(input instanceof Request?input.headers:undefined);
+  if(init?.headers)new Headers(init.headers).forEach((value,name)=>headers.set(name,value));
+  return JSON.stringify([...headers.entries()].sort(([a],[b])=>a.localeCompare(b)));
+}
+function mutationKey(input:RequestInfo|URL,init:RequestInit|undefined,method:string,url:string,headers:string){
+  // Request bodies are streams and FormData/Blob values cannot be compared safely.
+  // Never coalesce mutations whose exact bodies are unknown.
+  if(input instanceof Request&&init?.body===undefined)return null;
+  if(init?.body!=null&&typeof init.body!=='string')return null;
+  return JSON.stringify([method,url,headers,init?.body??'']);
+}
 function network(delta:number){networkPending=Math.max(0,networkPending+delta);window.dispatchEvent(new CustomEvent('nr-network',{detail:{pending:networkPending}}));}
 async function toPayload(r:Response,ttl=0){return{expires:ttl?Date.now()+ttl:0,status:r.status,statusText:r.statusText,headers:[...r.headers.entries()] as [string,string][],body:await r.clone().text()};}
 
@@ -24,33 +35,37 @@ export function installFastFetchCache(){
   window.fetch=async(input:RequestInfo|URL,init?:RequestInit)=>{
     const url=requestUrl(input),method=String(init?.method??(input instanceof Request?input.method:'GET')).toUpperCase();
     if(!url.startsWith(apiUrl)||!url.includes('/v1/'))return nativeFetch(input,init);
+    const headers=requestHeaders(input,init);
 
     if(method!=='GET'){
+      // A mutation invalidates cached reads, including reads already in flight.
+      cacheEpoch++;
       responseCache.clear();pending.clear();
-      const mutationKey=`${method}::${url}::${bodyKey(init)}`;
-      let wait=mutationPending.get(mutationKey);
+      const key=mutationKey(input,init,method,url,headers);
+      let wait=key===null?undefined:mutationPending.get(key);
       if(!wait){
         network(1);
         wait=nativeFetch(input,{...init,cache:'no-store'})
           .then(r=>toPayload(r))
-          .finally(()=>{mutationPending.delete(mutationKey);network(-1)});
-        mutationPending.set(mutationKey,wait);
+          .finally(()=>{if(key!==null)mutationPending.delete(key);network(-1)});
+        if(key!==null)mutationPending.set(key,wait);
       }
       return payloadToResponse(await wait);
     }
 
-    const key=`${authFrom(init)}::${url}`;
+    const key=`${headers}::${url}`;
     const hit=responseCache.get(key);
     if(hit&&hit.expires>Date.now())return payloadToResponse(hit);
     if(hit)responseCache.delete(key);
     let wait=pending.get(key);
     if(!wait){
+      const epoch=cacheEpoch;
       network(1);
       wait=nativeFetch(input,{...init,cache:'no-store'}).then(async r=>{
         const payload=await toPayload(r,TTL);
-        if(r.ok)responseCache.set(key,payload);
+        if(r.ok&&epoch===cacheEpoch)responseCache.set(key,payload);
         return payload;
-      }).finally(()=>{pending.delete(key);network(-1)});
+      }).finally(()=>{if(pending.get(key)===wait)pending.delete(key);network(-1)});
       pending.set(key,wait);
     }
     return payloadToResponse(await wait);

@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start -p 4028",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"miniapp tests pending gameplay routes\""
+    "test": "node --test src/lib/clientData.test.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.7.0",
