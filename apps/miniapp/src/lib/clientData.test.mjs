@@ -282,3 +282,49 @@ test('identical mutations with explicit credential modes remain independent',asy
   assert.deepEqual([await a.text(),await b.text(),await c.text()],['1:include','2:omit','3:include']);
   assert.equal(calls,3);
 });
+
+
+test('cached GETs are isolated across login, account switch, and logout without explicit headers',async()=>{
+  let session='A',calls=0;
+  const browser=setup(async()=>new Response(`${session}:${++calls}`),{getSession:()=>session});
+  assert.equal(await (await browser.fetch(endpoint)).text(),'A:1');
+  assert.equal(await (await browser.fetch(endpoint)).text(),'A:1');
+  session='B';
+  assert.equal(await (await browser.fetch(endpoint)).text(),'B:2');
+  session=null;
+  assert.equal(await (await browser.fetch(endpoint)).text(),'null:3');
+  assert.equal(calls,3);
+});
+
+test('an in-flight GET from an old session cannot populate the new session cache',async()=>{
+  let session='A',calls=0,releaseOld;
+  const browser=setup(async()=>{
+    calls++;
+    if(calls===1)return new Promise(resolve=>{releaseOld=resolve});
+    return new Response('new-session');
+  },{getSession:()=>session});
+  const old=browser.fetch(endpoint);
+  session='B';
+  const fresh=browser.fetch(endpoint);
+  releaseOld(new Response('old-session'));
+  assert.equal(await (await old).text(),'old-session');
+  assert.equal(await (await fresh).text(),'new-session');
+  assert.equal(await (await browser.fetch(endpoint)).text(),'new-session');
+  assert.equal(calls,2);
+});
+
+test('identical pending mutations are not deduplicated across account switches',async()=>{
+  let session='A',calls=0,releaseOld;
+  const browser=setup(async()=>{
+    calls++;
+    if(calls===1)return new Promise(resolve=>{releaseOld=resolve});
+    return new Response('new-account');
+  },{getSession:()=>session});
+  const old=browser.fetch(endpoint,{method:'POST',body:'{}'});
+  session='B';
+  const fresh=browser.fetch(endpoint,{method:'POST',body:'{}'});
+  releaseOld(new Response('old-account'));
+  assert.equal(await (await old).text(),'old-account');
+  assert.equal(await (await fresh).text(),'new-account');
+  assert.equal(calls,2);
+});
