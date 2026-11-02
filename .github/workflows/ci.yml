@@ -41,7 +41,7 @@ jobs:
           corepack enable
           corepack prepare pnpm@10.15.1 --activate
       - name: Install
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
       - name: Build migration runner
         run: pnpm --filter @nexusrealms/api build
       - name: PostgreSQL full schema and regression tests
