@@ -18,7 +18,8 @@ function invalidateReads(){
 
 function token(){return sessionStorage.getItem('nr_session')??'';}
 function requestUrl(input:RequestInfo|URL){return typeof input==='string'?input:input instanceof URL?input.toString():input.url;}
-function payloadToResponse(p:Payload){return new Response(p.body,{status:p.status,statusText:p.statusText,headers:p.headers});}
+// Fetch responses with these statuses must not have a body, even an empty string.
+function payloadToResponse(p:Payload){return new Response([204,205,304].includes(p.status)?null:p.body,{status:p.status,statusText:p.statusText,headers:p.headers});}
 function requestHeaders(input:RequestInfo|URL,init?:RequestInit){
   const headers=new Headers(input instanceof Request?input.headers:undefined);
   if(init?.headers)new Headers(init.headers).forEach((value,name)=>headers.set(name,value));
