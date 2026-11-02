@@ -10,12 +10,13 @@ const source=readFileSync(new URL('./clientData.ts',import.meta.url),'utf8');
 const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
 const endpoint='http://localhost:3001/v1/inventory';
 
-function setup(fetcher){
-  const browser={fetch:fetcher,dispatchEvent(){},setTimeout};
+function setup(fetcher,{getSession=()=>null,schedule=setTimeout}={}){
+  const browser={fetch:fetcher,dispatchEvent(){},setTimeout:schedule};
   const exports={};
-  const context=vm.createContext({exports,window:browser,sessionStorage:{getItem:()=>null},process:{env:{}},Headers,Request,Response,URL,CustomEvent:class{constructor(type,init){this.type=type;this.detail=init?.detail}}});
+  const context=vm.createContext({exports,window:browser,fetch:(...args)=>browser.fetch(...args),sessionStorage:{getItem:getSession},process:{env:{}},Headers,Request,Response,URL,CustomEvent:class{constructor(type,init){this.type=type;this.detail=init?.detail}}});
   vm.runInContext(js,context);
   exports.installFastFetchCache();
+  browser.prefetchGameData=exports.prefetchGameData;
   return browser;
 }
 
@@ -200,4 +201,57 @@ test('signaled GET bypasses an existing cached response',async()=>{
   assert.equal(await (await browser.fetch(endpoint)).text(),'1');
   assert.equal(await (await browser.fetch(endpoint,{signal:new AbortController().signal})).text(),'2');
   assert.equal(calls,2);
+});
+
+
+test('delayed prefetch does not replay an expired session after logout',async()=>{
+  let session='Bearer-A',calls=0;
+  const timers=[];
+  const browser=setup(async()=>{calls++;return new Response('ok')},{
+    getSession:()=>session,
+    schedule:callback=>{timers.push(callback);return timers.length}
+  });
+  browser.prefetchGameData();
+  assert.equal(timers.length,4);
+  session=null;
+  for(const callback of timers)callback();
+  await Promise.resolve();
+  assert.equal(calls,0);
+});
+
+test('prefetch after account switch uses only the current session',async()=>{
+  let session='A';
+  const timers=[],seen=[];
+  const browser=setup(async(_input,init)=>{
+    seen.push(new Headers(init.headers).get('authorization'));
+    return new Response('ok');
+  },{
+    getSession:()=>session,
+    schedule:callback=>{timers.push(callback);return timers.length}
+  });
+  browser.prefetchGameData();
+  session='B';
+  browser.prefetchGameData();
+  assert.equal(timers.length,8);
+  for(const callback of timers)callback();
+  await Promise.resolve();
+  assert.equal(seen.length,12);
+  assert.deepEqual([...new Set(seen)],['Bearer B']);
+});
+
+test('prefetch stops the current batch if the session changes mid-flight',async()=>{
+  let session='A',calls=0;
+  const timers=[];
+  const browser=setup(async()=>{
+    calls++;
+    session='B';
+    return new Response('ok');
+  },{
+    getSession:()=>session,
+    schedule:callback=>{timers.push(callback);return timers.length}
+  });
+  browser.prefetchGameData();
+  timers[0]();
+  await Promise.resolve();
+  assert.equal(calls,1);
 });

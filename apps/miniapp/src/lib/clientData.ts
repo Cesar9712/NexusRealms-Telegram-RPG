@@ -89,8 +89,13 @@ export function installFastFetchCache(){
   };
 }
 
-function warm(paths:string[],headers:{authorization:string}){
-  for(const path of paths)void fetch(`${apiUrl}${path}`,{headers}).catch(()=>{});
+function warm(paths:string[],headers:{authorization:string},expectedSession:string){
+  // A delayed prefetch must never replay credentials from a previous login.
+  // Check each request, since the session can change while a batch is warming.
+  for(const path of paths){
+    if(token()!==expectedSession)return;
+    void fetch(`${apiUrl}${path}`,{headers}).catch(()=>{});
+  }
 }
 
 export function prefetchGameData(){
@@ -101,8 +106,8 @@ export function prefetchGameData(){
 
   // Avoid a burst of a dozen DB-backed requests immediately after Telegram auth.
   // Core screens warm first; deeper systems wait until the initial UI is interactive.
-  window.setTimeout(()=>warm(['/v1/inventory','/v1/quests','/v1/bastion'],headers),180);
-  window.setTimeout(()=>warm(['/v1/progression','/v1/battle-pass','/v1/clan/dashboard'],headers),650);
-  window.setTimeout(()=>warm(['/v1/profession-tree','/v1/shop','/v1/skills'],headers),1300);
-  window.setTimeout(()=>warm(['/v1/realms','/v1/daily-rewards','/v1/professions'],headers),2100);
+  window.setTimeout(()=>warm(['/v1/inventory','/v1/quests','/v1/bastion'],headers,session),180);
+  window.setTimeout(()=>warm(['/v1/progression','/v1/battle-pass','/v1/clan/dashboard'],headers,session),650);
+  window.setTimeout(()=>warm(['/v1/profession-tree','/v1/shop','/v1/skills'],headers,session),1300);
+  window.setTimeout(()=>warm(['/v1/realms','/v1/daily-rewards','/v1/professions'],headers,session),2100);
 }
