@@ -132,3 +132,20 @@ test('GET still in flight when a mutation settles cannot repopulate stale cache'
   assert.equal(await (await browser.fetch(endpoint)).text(),'new');
   assert.equal(calls,3);
 });
+
+
+test('bodyless mutation statuses 204 and 205 remain valid Responses',async()=>{
+  for(const status of [204,205]){
+    const browser=setup(async()=>new Response(null,{status}));
+    const response=await browser.fetch(endpoint,{method:'DELETE',body:'{}'});
+    assert.equal(response.status,status);
+    assert.equal(await response.text(),'');
+  }
+});
+
+test('304 GET responses preserve their bodyless status',async()=>{
+  const browser=setup(async()=>new Response(null,{status:304}));
+  const response=await browser.fetch(endpoint);
+  assert.equal(response.status,304);
+  assert.equal(await response.text(),'');
+});
