@@ -3,8 +3,7 @@ name: CI
 on:
   push:
     branches: [main, bootstrap/rpg-platform, audit/aaa-hardening-20260908]
-  pull_request:
-    branches: [main, maintenance/dependency-security-20261102]
+  pull_request: {}
 
 permissions:
   contents: read
