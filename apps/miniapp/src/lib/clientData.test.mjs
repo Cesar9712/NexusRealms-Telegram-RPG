@@ -149,3 +149,55 @@ test('304 GET responses preserve their bodyless status',async()=>{
   assert.equal(response.status,304);
   assert.equal(await response.text(),'');
 });
+
+
+test('signaled GET does not share a pending request and can abort independently',async()=>{
+  let calls=0,finishFirst;
+  const browser=setup((_input,init)=>{
+    calls++;
+    if(!init?.signal)return new Promise(resolve=>{finishFirst=resolve});
+    return new Promise((_resolve,reject)=>{
+      init.signal.addEventListener('abort',()=>reject(Object.assign(new Error('aborted'),{name:'AbortError'})),{once:true});
+    });
+  });
+  const first=browser.fetch(endpoint);
+  const controller=new AbortController();
+  const second=browser.fetch(endpoint,{signal:controller.signal});
+  controller.abort();
+  await assert.rejects(second,{name:'AbortError'});
+  finishFirst(new Response('ok'));
+  assert.equal(await (await first).text(),'ok');
+  assert.equal(calls,2);
+});
+
+test('abortable identical mutations are never coalesced',async()=>{
+  let calls=0;
+  const browser=setup((_input,init)=>new Promise((resolve,reject)=>{
+    calls++;
+    init.signal?.addEventListener('abort',()=>reject(Object.assign(new Error('aborted'),{name:'AbortError'})),{once:true});
+    setTimeout(()=>resolve(new Response('saved')),10);
+  }));
+  const firstSignal=new AbortController(),secondSignal=new AbortController();
+  const first=browser.fetch(endpoint,{method:'POST',body:'{}',signal:firstSignal.signal});
+  const second=browser.fetch(endpoint,{method:'POST',body:'{}',signal:secondSignal.signal});
+  firstSignal.abort();
+  await assert.rejects(first,{name:'AbortError'});
+  assert.equal(await (await second).text(),'saved');
+  assert.equal(calls,2);
+});
+
+test('GET cache:no-store bypasses a previous cached response',async()=>{
+  let calls=0;
+  const browser=setup(async()=>new Response(String(++calls)));
+  assert.equal(await (await browser.fetch(endpoint)).text(),'1');
+  assert.equal(await (await browser.fetch(endpoint,{cache:'no-store'})).text(),'2');
+  assert.equal(calls,2);
+});
+
+test('signaled GET bypasses an existing cached response',async()=>{
+  let calls=0;
+  const browser=setup(async()=>new Response(String(++calls)));
+  assert.equal(await (await browser.fetch(endpoint)).text(),'1');
+  assert.equal(await (await browser.fetch(endpoint,{signal:new AbortController().signal})).text(),'2');
+  assert.equal(calls,2);
+});
