@@ -255,3 +255,30 @@ test('prefetch stops the current batch if the session changes mid-flight',async(
   await Promise.resolve();
   assert.equal(calls,1);
 });
+
+
+test('explicit credential modes bypass the GET cache and preserve native fetch options',async()=>{
+  let calls=0;
+  const browser=setup(async(_input,init)=>new Response(`${++calls}:${init?.credentials??'default'}`));
+  assert.equal(await (await browser.fetch(endpoint)).text(),'1:default');
+  assert.equal(await (await browser.fetch(endpoint,{credentials:'include'})).text(),'2:include');
+  assert.equal(await (await browser.fetch(endpoint,{credentials:'omit'})).text(),'3:omit');
+  assert.equal(await (await browser.fetch(endpoint)).text(),'1:default');
+  assert.equal(calls,3);
+});
+
+test('identical mutations with explicit credential modes remain independent',async()=>{
+  let calls=0;
+  const browser=setup(async(_input,init)=>{
+    const call=++calls;
+    await Promise.resolve();
+    return new Response(`${call}:${init.credentials}`);
+  });
+  const [a,b,c]=await Promise.all([
+    browser.fetch(endpoint,{method:'POST',body:'{}',credentials:'include'}),
+    browser.fetch(endpoint,{method:'POST',body:'{}',credentials:'omit'}),
+    browser.fetch(endpoint,{method:'POST',body:'{}',credentials:'include'})
+  ]);
+  assert.deepEqual([await a.text(),await b.text(),await c.text()],['1:include','2:omit','3:include']);
+  assert.equal(calls,3);
+});
