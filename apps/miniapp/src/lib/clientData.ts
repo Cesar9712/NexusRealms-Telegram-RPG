@@ -29,7 +29,8 @@ function mutationKey(input:RequestInfo|URL,init:RequestInit|undefined,method:str
   // Request bodies are streams and FormData/Blob values cannot be compared safely.
   // Never coalesce mutations whose exact bodies are unknown.
   // Abortable mutations must not share a network request: one caller may cancel independently.
-  if(init?.signal||input instanceof Request)return null;
+  // Explicit credential modes may use different cookies; never coalesce their mutations.
+  if(init?.signal||input instanceof Request||init?.credentials!==undefined)return null;
   if(init?.body!=null&&typeof init.body!=='string')return null;
   return JSON.stringify([method,url,headers,init?.body??'']);
 }
@@ -48,7 +49,8 @@ export function installFastFetchCache(){
     const cacheMode=init?.cache??(input instanceof Request?input.cache:undefined);
     // Fetch cancellation and explicit cache policies must retain native semantics.
     // Request objects always carry a signal, so do not coalesce or cache them.
-    if(method==='GET'&&(signal||['no-store','no-cache','reload'].includes(cacheMode??'')))return nativeFetch(input,init);
+    // Requests with explicit credential modes may vary by cookie jar/session.
+    if(method==='GET'&&(signal||init?.credentials!==undefined||['no-store','no-cache','reload'].includes(cacheMode??'')))return nativeFetch(input,init);
 
     if(method!=='GET'){
       // Reads can become stale both when a mutation starts and when it settles.
