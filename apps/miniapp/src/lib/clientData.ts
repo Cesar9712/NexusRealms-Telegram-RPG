@@ -10,6 +10,12 @@ let installed=false;
 let networkPending=0;
 let cacheEpoch=0;
 
+function invalidateReads(){
+  cacheEpoch++;
+  responseCache.clear();
+  pending.clear();
+}
+
 function token(){return sessionStorage.getItem('nr_session')??'';}
 function requestUrl(input:RequestInfo|URL){return typeof input==='string'?input:input instanceof URL?input.toString():input.url;}
 function payloadToResponse(p:Payload){return new Response(p.body,{status:p.status,statusText:p.statusText,headers:p.headers});}
@@ -38,16 +44,20 @@ export function installFastFetchCache(){
     const headers=requestHeaders(input,init);
 
     if(method!=='GET'){
-      // A mutation invalidates cached reads, including reads already in flight.
-      cacheEpoch++;
-      responseCache.clear();pending.clear();
+      // Reads can become stale both when a mutation starts and when it settles.
+      invalidateReads();
       const key=mutationKey(input,init,method,url,headers);
       let wait=key===null?undefined:mutationPending.get(key);
       if(!wait){
         network(1);
         wait=nativeFetch(input,{...init,cache:'no-store'})
           .then(r=>toPayload(r))
-          .finally(()=>{if(key!==null)mutationPending.delete(key);network(-1)});
+          .finally(()=>{
+            // A GET completed during the mutation may have cached pre-write state.
+            invalidateReads();
+            if(key!==null&&mutationPending.get(key)===wait)mutationPending.delete(key);
+            network(-1);
+          });
         if(key!==null)mutationPending.set(key,wait);
       }
       return payloadToResponse(await wait);

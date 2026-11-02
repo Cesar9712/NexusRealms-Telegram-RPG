@@ -96,3 +96,39 @@ test('old in-flight GET does not remove a newer pending GET after mutation',asyn
   assert.equal(await (await third).text(),'new');
   assert.equal(calls,3);
 });
+
+test('GET cached during an unfinished mutation is invalidated when the mutation settles',async()=>{
+  let calls=0,finishMutation;
+  let version='before';
+  const browser=setup(async(_input,init)=>{
+    calls++;
+    if(init?.method==='POST')return new Promise(resolve=>{
+      finishMutation=()=>{version='after';resolve(new Response('saved'))};
+    });
+    return new Response(version);
+  });
+  const mutation=browser.fetch(endpoint,{method:'POST',body:'{}'});
+  assert.equal(await (await browser.fetch(endpoint)).text(),'before');
+  finishMutation();
+  await mutation;
+  assert.equal(await (await browser.fetch(endpoint)).text(),'after');
+  assert.equal(calls,3);
+});
+
+test('GET still in flight when a mutation settles cannot repopulate stale cache',async()=>{
+  let calls=0,finishMutation,finishOldRead;
+  const browser=setup(async(_input,init)=>{
+    calls++;
+    if(init?.method==='POST')return new Promise(resolve=>{finishMutation=()=>resolve(new Response('saved'))});
+    if(calls===2)return new Promise(resolve=>{finishOldRead=()=>resolve(new Response('old'))});
+    return new Response('new');
+  });
+  const mutation=browser.fetch(endpoint,{method:'POST',body:'{}'});
+  const staleRead=browser.fetch(endpoint);
+  finishMutation();
+  await mutation;
+  finishOldRead();
+  assert.equal(await (await staleRead).text(),'old');
+  assert.equal(await (await browser.fetch(endpoint)).text(),'new');
+  assert.equal(calls,3);
+});
