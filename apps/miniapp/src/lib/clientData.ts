@@ -9,6 +9,7 @@ const mutationPending=new Map<string,Promise<Payload>>();
 let installed=false;
 let networkPending=0;
 let cacheEpoch=0;
+let cachedSession:string|undefined;
 
 function invalidateReads(){
   cacheEpoch++;
@@ -17,6 +18,16 @@ function invalidateReads(){
 }
 
 function token(){return sessionStorage.getItem('nr_session')??'';}
+function syncSession(){
+  // Default fetch credentials can carry a different user's cookies even when
+  // callers do not explicitly set Authorization headers or credentials.
+  // Never reuse cached reads or deduplicated writes across login/logout.
+  const current=token();
+  if(current===cachedSession)return;
+  cachedSession=current;
+  invalidateReads();
+  mutationPending.clear();
+}
 function requestUrl(input:RequestInfo|URL){return typeof input==='string'?input:input instanceof URL?input.toString():input.url;}
 // Fetch responses with these statuses must not have a body, even an empty string.
 function payloadToResponse(p:Payload){return new Response([204,205,304].includes(p.status)?null:p.body,{status:p.status,statusText:p.statusText,headers:p.headers});}
@@ -44,6 +55,7 @@ export function installFastFetchCache(){
   window.fetch=async(input:RequestInfo|URL,init?:RequestInit)=>{
     const url=requestUrl(input),method=String(init?.method??(input instanceof Request?input.method:'GET')).toUpperCase();
     if(!url.startsWith(apiUrl)||!url.includes('/v1/'))return nativeFetch(input,init);
+    syncSession();
     const headers=requestHeaders(input,init);
     const signal=init?.signal??(input instanceof Request?input.signal:undefined);
     const cacheMode=init?.cache??(input instanceof Request?input.cache:undefined);
