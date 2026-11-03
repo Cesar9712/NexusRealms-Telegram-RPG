@@ -328,3 +328,23 @@ test('identical pending mutations are not deduplicated across account switches',
   assert.equal(await (await fresh).text(),'new-account');
   assert.equal(calls,2);
 });
+
+
+test('lookalike URL authority does not enter the API response cache',async()=>{
+  let calls=0;
+  const browser=setup(async()=>new Response(String(++calls)));
+  // The original startsWith(apiUrl) check incorrectly accepted this userinfo URL.
+  const lookalike='http://localhost:3001@outside.example/v1/inventory';
+  assert.equal(await (await browser.fetch(lookalike)).text(),'1');
+  assert.equal(await (await browser.fetch(lookalike)).text(),'2');
+  assert.equal(calls,2);
+});
+
+test('unrelated same-origin paths containing /v1/ bypass the API cache',async()=>{
+  let calls=0;
+  const browser=setup(async()=>new Response(String(++calls)));
+  const other='http://localhost:3001/other/v1/inventory';
+  assert.equal(await (await browser.fetch(other)).text(),'1');
+  assert.equal(await (await browser.fetch(other)).text(),'2');
+  assert.equal(calls,2);
+});
