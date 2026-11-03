@@ -28,6 +28,16 @@ function syncSession(){
   invalidateReads();
   mutationPending.clear();
 }
+function isApiRequest(rawUrl:string){
+  // A string prefix alone also matches URLs with lookalike authorities
+  // (e.g. http://api.example@other-host/v1/) and unrelated /v1/ subpaths.
+  try{
+    const base=new URL(apiUrl);
+    const target=new URL(rawUrl);
+    const prefix=base.pathname.replace(/\/+$/,'');
+    return target.origin===base.origin&&target.pathname.startsWith(`${prefix}/v1/`);
+  }catch{return false;}
+}
 function requestUrl(input:RequestInfo|URL){return typeof input==='string'?input:input instanceof URL?input.toString():input.url;}
 // Fetch responses with these statuses must not have a body, even an empty string.
 function payloadToResponse(p:Payload){return new Response([204,205,304].includes(p.status)?null:p.body,{status:p.status,statusText:p.statusText,headers:p.headers});}
@@ -54,7 +64,7 @@ export function installFastFetchCache(){
   const nativeFetch=window.fetch.bind(window);
   window.fetch=async(input:RequestInfo|URL,init?:RequestInit)=>{
     const url=requestUrl(input),method=String(init?.method??(input instanceof Request?input.method:'GET')).toUpperCase();
-    if(!url.startsWith(apiUrl)||!url.includes('/v1/'))return nativeFetch(input,init);
+    if(!isApiRequest(url))return nativeFetch(input,init);
     syncSession();
     const headers=requestHeaders(input,init);
     const signal=init?.signal??(input instanceof Request?input.signal:undefined);
