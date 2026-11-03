@@ -10,10 +10,10 @@ const source=readFileSync(new URL('./clientData.ts',import.meta.url),'utf8');
 const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
 const endpoint='http://localhost:3001/v1/inventory';
 
-function setup(fetcher,{getSession=()=>null,schedule=setTimeout}={}){
+function setup(fetcher,{getSession=()=>null,schedule=setTimeout,apiUrl}={}){
   const browser={fetch:fetcher,dispatchEvent(){},setTimeout:schedule};
   const exports={};
-  const context=vm.createContext({exports,window:browser,fetch:(...args)=>browser.fetch(...args),sessionStorage:{getItem:getSession},process:{env:{}},Headers,Request,Response,URL,CustomEvent:class{constructor(type,init){this.type=type;this.detail=init?.detail}}});
+  const context=vm.createContext({exports,window:browser,fetch:(...args)=>browser.fetch(...args),sessionStorage:{getItem:getSession},process:{env:apiUrl?{NEXT_PUBLIC_API_URL:apiUrl}:{}},Headers,Request,Response,URL,CustomEvent:class{constructor(type,init){this.type=type;this.detail=init?.detail}}});
   vm.runInContext(js,context);
   exports.installFastFetchCache();
   browser.prefetchGameData=exports.prefetchGameData;
@@ -347,4 +347,22 @@ test('unrelated same-origin paths containing /v1/ bypass the API cache',async()=
   assert.equal(await (await browser.fetch(other)).text(),'1');
   assert.equal(await (await browser.fetch(other)).text(),'2');
   assert.equal(calls,2);
+});
+
+test('prefetch normalizes trailing slashes in the configured API URL',async()=>{
+  const seen=[],timers=[];
+  const browser=setup(async(input)=>{
+    seen.push(String(input));
+    return new Response('ok');
+  },{
+    apiUrl:'https://api.example.test/game/',
+    getSession:()=> 'A',
+    schedule:callback=>{timers.push(callback);return timers.length}
+  });
+  browser.prefetchGameData();
+  for(const callback of timers)callback();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(seen.length,12);
+  assert.ok(seen.every(url=>url.startsWith('https://api.example.test/game/v1/')));
+  assert.ok(seen.every(url=>!url.includes('/game//v1/')));
 });

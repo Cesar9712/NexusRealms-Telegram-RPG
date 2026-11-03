@@ -118,7 +118,7 @@ function warm(paths:string[],headers:{authorization:string},expectedSession:stri
   // Check each request, since the session can change while a batch is warming.
   for(const path of paths){
     if(token()!==expectedSession)return;
-    void fetch(`${apiUrl}${path}`,{headers}).catch(()=>{});
+    void fetch(`${apiUrl.replace(/\/+$/,'')}${path}`,{headers}).catch(()=>{});
   }
 }
 
