@@ -402,3 +402,22 @@ test('GET responses with Cache-Control max-age=0 are not cached',async()=>{
     assert.equal(calls,2);
   }
 });
+
+
+test('GET responses with max-age shorter than the local TTL are not reused',async()=>{
+  for(const directive of ['max-age=1','public, max-age=30','max-age="44"']){
+    let calls=0;
+    const browser=setup(async()=>new Response(String(++calls),{headers:{'cache-control':directive}}));
+    assert.equal(await (await browser.fetch(endpoint)).text(),'1');
+    assert.equal(await (await browser.fetch(endpoint)).text(),'2');
+    assert.equal(calls,2);
+  }
+});
+
+test('GET responses with sufficient max-age may still use the local TTL',async()=>{
+  let calls=0;
+  const browser=setup(async()=>new Response(String(++calls),{headers:{'cache-control':'public, max-age=60'}}));
+  assert.equal(await (await browser.fetch(endpoint)).text(),'1');
+  assert.equal(await (await browser.fetch(endpoint)).text(),'1');
+  assert.equal(calls,1);
+});
