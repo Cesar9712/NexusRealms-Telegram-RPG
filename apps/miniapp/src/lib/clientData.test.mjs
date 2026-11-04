@@ -366,3 +366,17 @@ test('prefetch normalizes trailing slashes in the configured API URL',async()=>{
   assert.ok(seen.every(url=>url.startsWith('https://api.example.test/game/v1/')));
   assert.ok(seen.every(url=>!url.includes('/game//v1/')));
 });
+
+
+test('206 Partial Content is never reused as a full GET response',async()=>{
+  let calls=0;
+  const browser=setup(async()=>{
+    calls++;
+    return calls===1
+      ?new Response('part',{status:206,headers:{'content-range':'bytes 0-3/8'}})
+      :new Response('complete',{status:200});
+  });
+  assert.equal((await browser.fetch(endpoint)).status,206);
+  assert.equal(await (await browser.fetch(endpoint)).text(),'complete');
+  assert.equal(calls,2);
+});
