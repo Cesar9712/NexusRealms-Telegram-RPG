@@ -56,9 +56,9 @@ function mutationKey(input:RequestInfo|URL,init:RequestInit|undefined,method:str
   return JSON.stringify([method,url,headers,init?.body??'']);
 }
 function allowsLocalTtl(cacheControl:string){
-  if(/\\b(?:no-store|no-cache|private)\\b/i.test(cacheControl))return false;
+  if(/\b(?:no-store|no-cache|private)\b/i.test(cacheControl))return false;
   // A shorter server freshness lifetime must never be extended to our 45s TTL.
-  const age=cacheControl.match(/(?:^|,)\\s*max-age\\s*=\\s*"?(\\d+)"?\\s*(?:,|$)/i);
+  const age=cacheControl.match(/(?:^|,)\s*max-age\s*=\s*"?(\d+)"?\s*(?:,|$)/i);
   return !age||Number(age[1])*1000>=TTL;
 }
 function network(delta:number){networkPending=Math.max(0,networkPending+delta);window.dispatchEvent(new CustomEvent('nr-network',{detail:{pending:networkPending}}));}
