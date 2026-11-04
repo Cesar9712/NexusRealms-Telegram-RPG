@@ -55,6 +55,12 @@ function mutationKey(input:RequestInfo|URL,init:RequestInit|undefined,method:str
   if(init?.body!=null&&typeof init.body!=='string')return null;
   return JSON.stringify([method,url,headers,init?.body??'']);
 }
+function allowsLocalTtl(cacheControl:string){
+  if(/\\b(?:no-store|no-cache|private)\\b/i.test(cacheControl))return false;
+  // A shorter server freshness lifetime must never be extended to our 45s TTL.
+  const age=cacheControl.match(/(?:^|,)\\s*max-age\\s*=\\s*"?(\\d+)"?\\s*(?:,|$)/i);
+  return !age||Number(age[1])*1000>=TTL;
+}
 function network(delta:number){networkPending=Math.max(0,networkPending+delta);window.dispatchEvent(new CustomEvent('nr-network',{detail:{pending:networkPending}}));}
 async function toPayload(r:Response,ttl=0){return{expires:ttl?Date.now()+ttl:0,status:r.status,statusText:r.statusText,headers:[...r.headers.entries()] as [string,string][],body:await r.clone().text()};}
 
@@ -105,7 +111,7 @@ export function installFastFetchCache(){
       wait=nativeFetch(input,{...init,cache:'no-store'}).then(async r=>{
         const payload=await toPayload(r,TTL);
         // A 206 is a successful but incomplete representation; never reuse it for a full GET.
-        if(r.status===200&&!/\b(?:no-store|no-cache|private)\b/i.test(r.headers.get('cache-control')??'')&&!/\bmax-age\s*=\s*"?0"?(?:\s*(?:,|$))/i.test(r.headers.get('cache-control')??'')&&epoch===cacheEpoch)responseCache.set(key,payload);
+        if(r.status===200&&allowsLocalTtl(r.headers.get('cache-control')??'')&&epoch===cacheEpoch)responseCache.set(key,payload);
         return payload;
       }).finally(()=>{if(pending.get(key)===wait)pending.delete(key);network(-1)});
       pending.set(key,wait);
