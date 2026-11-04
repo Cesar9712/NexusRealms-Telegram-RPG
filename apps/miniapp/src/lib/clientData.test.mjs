@@ -391,3 +391,14 @@ test('GET responses marked private, no-store, or no-cache are never cached',asyn
     assert.equal(calls,2);
   }
 });
+
+
+test('GET responses with Cache-Control max-age=0 are not cached',async()=>{
+  for(const directive of ['max-age=0','public, max-age=0','max-age="0"']){
+    let calls=0;
+    const browser=setup(async()=>new Response(String(++calls),{headers:{'cache-control':directive}}));
+    assert.equal(await (await browser.fetch(endpoint)).text(),'1');
+    assert.equal(await (await browser.fetch(endpoint)).text(),'2');
+    assert.equal(calls,2);
+  }
+});
