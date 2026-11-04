@@ -104,7 +104,8 @@ export function installFastFetchCache(){
       network(1);
       wait=nativeFetch(input,{...init,cache:'no-store'}).then(async r=>{
         const payload=await toPayload(r,TTL);
-        if(r.ok&&epoch===cacheEpoch)responseCache.set(key,payload);
+        // A 206 is a successful but incomplete representation; never reuse it for a full GET.
+        if(r.status===200&&epoch===cacheEpoch)responseCache.set(key,payload);
         return payload;
       }).finally(()=>{if(pending.get(key)===wait)pending.delete(key);network(-1)});
       pending.set(key,wait);
