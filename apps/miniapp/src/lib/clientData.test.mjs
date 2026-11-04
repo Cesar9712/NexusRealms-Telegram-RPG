@@ -380,3 +380,14 @@ test('206 Partial Content is never reused as a full GET response',async()=>{
   assert.equal(await (await browser.fetch(endpoint)).text(),'complete');
   assert.equal(calls,2);
 });
+
+
+test('GET responses marked private, no-store, or no-cache are never cached',async()=>{
+  for(const directive of ['private','no-store','no-cache']){
+    let calls=0;
+    const browser=setup(async()=>new Response(String(++calls),{headers:{'cache-control':directive}}));
+    assert.equal(await (await browser.fetch(endpoint)).text(),'1');
+    assert.equal(await (await browser.fetch(endpoint)).text(),'2');
+    assert.equal(calls,2);
+  }
+});
