@@ -421,3 +421,14 @@ test('GET responses with sufficient max-age may still use the local TTL',async()
   assert.equal(await (await browser.fetch(endpoint)).text(),'1');
   assert.equal(calls,1);
 });
+
+
+test('GET responses with upstream Age do not receive a fresh local TTL',async()=>{
+  for(const age of ['1','30','not-a-number']){
+    let calls=0;
+    const browser=setup(async()=>new Response(String(++calls),{headers:{'cache-control':'public, max-age=60',age}}));
+    assert.equal(await (await browser.fetch(endpoint)).text(),'1');
+    assert.equal(await (await browser.fetch(endpoint)).text(),'2');
+    assert.equal(calls,2);
+  }
+});
