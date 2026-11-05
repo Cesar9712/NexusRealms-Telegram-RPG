@@ -432,3 +432,14 @@ test('GET responses with upstream Age do not receive a fresh local TTL',async()=
     assert.equal(calls,2);
   }
 });
+
+
+test('Age zero preserves eligible local caching while invalid negative Age bypasses it',async()=>{
+  for(const [age,expectedCalls] of [['0',1],[' 0 ',1],['-1',2]]){
+    let calls=0;
+    const browser=setup(async()=>new Response(String(++calls),{headers:{'cache-control':'public, max-age=60',age}}));
+    assert.equal(await (await browser.fetch(endpoint)).text(),'1');
+    assert.equal(await (await browser.fetch(endpoint)).text(),String(expectedCalls));
+    assert.equal(calls,expectedCalls);
+  }
+});
