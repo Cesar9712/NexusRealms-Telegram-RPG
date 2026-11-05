@@ -55,7 +55,10 @@ function mutationKey(input:RequestInfo|URL,init:RequestInit|undefined,method:str
   if(init?.body!=null&&typeof init.body!=='string')return null;
   return JSON.stringify([method,url,headers,init?.body??'']);
 }
-function allowsLocalTtl(cacheControl:string){
+function allowsLocalTtl(cacheControl:string,ageHeader:string|null){
+  // A response already aged in an upstream cache cannot safely receive a fresh 45s TTL.
+  // Reject malformed Age values conservatively rather than extending server freshness.
+  if(ageHeader!==null&&(!/^\d+$/.test(ageHeader.trim())||Number(ageHeader.trim())>0))return false;
   if(/\b(?:no-store|no-cache|private)\b/i.test(cacheControl))return false;
   // A shorter server freshness lifetime must never be extended to our 45s TTL.
   const age=cacheControl.match(/(?:^|,)\s*max-age\s*=\s*"?(\d+)"?\s*(?:,|$)/i);
@@ -111,7 +114,7 @@ export function installFastFetchCache(){
       wait=nativeFetch(input,{...init,cache:'no-store'}).then(async r=>{
         const payload=await toPayload(r,TTL);
         // A 206 is a successful but incomplete representation; never reuse it for a full GET.
-        if(r.status===200&&allowsLocalTtl(r.headers.get('cache-control')??'')&&epoch===cacheEpoch)responseCache.set(key,payload);
+        if(r.status===200&&allowsLocalTtl(r.headers.get('cache-control')??'',r.headers.get('age'))&&epoch===cacheEpoch)responseCache.set(key,payload);
         return payload;
       }).finally(()=>{if(pending.get(key)===wait)pending.delete(key);network(-1)});
       pending.set(key,wait);
