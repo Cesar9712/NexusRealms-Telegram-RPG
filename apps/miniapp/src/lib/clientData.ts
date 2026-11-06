@@ -61,8 +61,14 @@ function allowsLocalTtl(cacheControl:string,ageHeader:string|null){
   if(ageHeader!==null&&(!/^\d+$/.test(ageHeader.trim())||Number(ageHeader.trim())>0))return false;
   if(/\b(?:no-store|no-cache|private)\b/i.test(cacheControl))return false;
   // A shorter server freshness lifetime must never be extended to our 45s TTL.
-  const age=cacheControl.match(/(?:^|,)\s*max-age\s*=\s*"?(\d+)"?\s*(?:,|$)/i);
-  return !age||Number(age[1])*1000>=TTL;
+  // Conflicting max-age directives are ambiguous: do not choose one and
+  // accidentally grant a longer local lifetime than the origin intended.
+  const directives=cacheControl.split(',').map(value=>value.trim());
+  const ages=directives.filter(value=>/^max-age\s*=/i.test(value));
+  if(ages.length>1)return false;
+  if(ages.length===0)return true;
+  const match=/^max-age\s*=\s*"?([0-9]+)"?$/i.exec(ages[0]);
+  return match!==null&&Number(match[1])*1000>=TTL;
 }
 function network(delta:number){networkPending=Math.max(0,networkPending+delta);window.dispatchEvent(new CustomEvent('nr-network',{detail:{pending:networkPending}}));}
 async function toPayload(r:Response,ttl=0){return{expires:ttl?Date.now()+ttl:0,status:r.status,statusText:r.statusText,headers:[...r.headers.entries()] as [string,string][],body:await r.clone().text()};}
