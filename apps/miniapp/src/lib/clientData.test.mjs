@@ -450,7 +450,11 @@ test('conflicting or malformed max-age directives never extend local freshness',
     'max-age=0, max-age=60',
     'public, max-age=60, max-age=30',
     'public, max-age=invalid',
-    'public, max-age=+60'
+    'public, max-age=+60',
+    'public, max-age',
+    'public, max-age 60',
+    'public, max-age =',
+    'public, max-age=60, max-age'
   ]){
     let calls=0;
     const browser=setup(async()=>new Response(String(++calls),{headers:{'cache-control':directive}}));
