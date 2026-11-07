@@ -68,8 +68,8 @@ function allowsLocalTtl(cacheControl:string,ageHeader:string|null){
   const ages=directives.filter(value=>/^max-age\b/i.test(value));
   if(ages.length>1)return false;
   if(ages.length===0)return true;
-  const match=/^max-age\s*=\s*"?([0-9]+)"?$/i.exec(ages[0]);
-  return match!==null&&Number(match[1])*1000>=TTL;
+  const match=/^max-age\s*=\s*(?:([0-9]+)|"([0-9]+)")$/i.exec(ages[0]);
+  return match!==null&&Number(match[1]??match[2])*1000>=TTL;
 }
 function network(delta:number){networkPending=Math.max(0,networkPending+delta);window.dispatchEvent(new CustomEvent('nr-network',{detail:{pending:networkPending}}));}
 async function toPayload(r:Response,ttl=0){return{expires:ttl?Date.now()+ttl:0,status:r.status,statusText:r.statusText,headers:[...r.headers.entries()] as [string,string][],body:await r.clone().text()};}
