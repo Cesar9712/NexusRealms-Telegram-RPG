@@ -65,7 +65,7 @@ function allowsLocalTtl(cacheControl:string,ageHeader:string|null){
   // accidentally grant a longer local lifetime than the origin intended.
   const directives=cacheControl.split(',').map(value=>value.trim());
   // A bare or otherwise malformed max-age token is not an absent directive.
-  const ages=directives.filter(value=>/^max-age(?:\s|=|$)/i.test(value));
+  const ages=directives.filter(value=>/^max-age\b/i.test(value));
   if(ages.length>1)return false;
   if(ages.length===0)return true;
   const match=/^max-age\s*=\s*"?([0-9]+)"?$/i.exec(ages[0]);
