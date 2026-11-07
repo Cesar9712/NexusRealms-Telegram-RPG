@@ -467,3 +467,21 @@ test('conflicting or malformed max-age directives never extend local freshness',
     assert.equal(calls,2,directive);
   }
 });
+
+
+test('unbalanced max-age quotes cannot grant local freshness',async()=>{
+  for(const directive of ['max-age="60','max-age=60"','public, max-age="600','public, max-age=600"']){
+    let calls=0;
+    const browser=setup(async()=>new Response(String(++calls),{headers:{'cache-control':directive}}));
+    assert.equal(await (await browser.fetch(endpoint)).text(),'1');
+    assert.equal(await (await browser.fetch(endpoint)).text(),'2');
+    assert.equal(calls,2,directive);
+  }
+  for(const directive of ['max-age=60','max-age="60"']){
+    let calls=0;
+    const browser=setup(async()=>new Response(String(++calls),{headers:{'cache-control':directive}}));
+    assert.equal(await (await browser.fetch(endpoint)).text(),'1');
+    assert.equal(await (await browser.fetch(endpoint)).text(),'1');
+    assert.equal(calls,1,directive);
+  }
+});
