@@ -85,10 +85,10 @@ export function installFastFetchCache(){
     const headers=requestHeaders(input,init);
     const signal=init?.signal??(input instanceof Request?input.signal:undefined);
     const cacheMode=init?.cache??(input instanceof Request?input.cache:undefined);
-    // Fetch cancellation and explicit cache policies must retain native semantics.
+    // Fetch cancellation and all explicit cache policies must retain native semantics.
     // Request objects always carry a signal, so do not coalesce or cache them.
     // Requests with explicit credential modes may vary by cookie jar/session.
-    if(method==='GET'&&(signal||init?.credentials!==undefined||['no-store','no-cache','reload'].includes(cacheMode??'')))return nativeFetch(input,init);
+    if(method==='GET'&&(signal||init?.credentials!==undefined||cacheMode!==undefined))return nativeFetch(input,init);
 
     if(method!=='GET'){
       // Reads can become stale both when a mutation starts and when it settles.
