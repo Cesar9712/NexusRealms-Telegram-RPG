@@ -496,3 +496,20 @@ test('every explicit GET cache mode preserves native fetch semantics',async()=>{
     assert.equal(calls,2,mode);
   }
 });
+
+
+test('Vary star responses are not reused from the local GET cache',async()=>{
+  let calls=0;
+  const browser=setup(async()=>new Response(String(++calls),{headers:{vary:'*','cache-control':'public, max-age=60'}}));
+  assert.equal(await (await browser.fetch(endpoint)).text(),'1');
+  assert.equal(await (await browser.fetch(endpoint)).text(),'2');
+  assert.equal(calls,2);
+});
+
+test('ordinary Vary responses retain caching when request headers match',async()=>{
+  let calls=0;
+  const browser=setup(async()=>new Response(String(++calls),{headers:{vary:'Accept-Language','cache-control':'public, max-age=60'}}));
+  assert.equal(await (await browser.fetch(endpoint,{headers:{'Accept-Language':'es'}})).text(),'1');
+  assert.equal(await (await browser.fetch(endpoint,{headers:{'Accept-Language':'es'}})).text(),'1');
+  assert.equal(calls,1);
+});
