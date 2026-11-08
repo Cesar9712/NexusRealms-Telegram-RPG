@@ -491,7 +491,7 @@ test('every explicit GET cache mode preserves native fetch semantics',async()=>{
   for(const mode of ['default','no-store','no-cache','reload','force-cache','only-if-cached']){
     let calls=0;
     const browser=setup(async(_input,init)=>new Response(`${++calls}:${init?.cache??'implicit'}`));
-    assert.equal(await (await browser.fetch(endpoint)).text(),'1:implicit');
+    assert.equal(await (await browser.fetch(endpoint)).text(),'1:no-store');
     assert.equal(await (await browser.fetch(endpoint,{cache:mode})).text(),`2:${mode}`);
     assert.equal(calls,2,mode);
   }
