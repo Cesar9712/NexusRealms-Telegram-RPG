@@ -127,7 +127,7 @@ export function installFastFetchCache(){
       wait=nativeFetch(input,{...init,cache:'no-store'}).then(async r=>{
         const payload=await toPayload(r,TTL);
         // A 206 is a successful but incomplete representation; never reuse it for a full GET.
-        if(r.status===200&&!r.headers.get('vary')?.split(',').some(value=>value.trim()==='*')&&allowsLocalTtl(r.headers.get('cache-control')??'',r.headers.get('age'),r.headers.get('expires'))&&epoch===cacheEpoch)responseCache.set(key,payload);
+        if(r.status===200&&!r.headers.get('vary')?.split(',').some(value=>['*','cookie'].includes(value.trim().toLowerCase()))&&allowsLocalTtl(r.headers.get('cache-control')??'',r.headers.get('age'),r.headers.get('expires'))&&epoch===cacheEpoch)responseCache.set(key,payload);
         return payload;
       }).finally(()=>{if(pending.get(key)===wait)pending.delete(key);network(-1)});
       pending.set(key,wait);
