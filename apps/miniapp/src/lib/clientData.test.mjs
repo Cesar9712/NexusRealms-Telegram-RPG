@@ -513,3 +513,26 @@ test('ordinary Vary responses retain caching when request headers match',async()
   assert.equal(await (await browser.fetch(endpoint,{headers:{'Accept-Language':'es'}})).text(),'1');
   assert.equal(calls,1);
 });
+
+test('expired, malformed and soon-expiring Expires responses bypass local cache',async()=>{
+  for(const expires of [
+    new Date(Date.now()-60_000).toUTCString(),
+    new Date(Date.now()+10_000).toUTCString(),
+    'not-a-date'
+  ]){
+    let calls=0;
+    const browser=setup(async()=>new Response(String(++calls),{headers:{expires}}));
+    assert.equal(await (await browser.fetch(endpoint)).text(),'1');
+    assert.equal(await (await browser.fetch(endpoint)).text(),'2');
+    assert.equal(calls,2,expires);
+  }
+});
+
+test('future Expires response remains eligible for local caching',async()=>{
+  let calls=0;
+  const expires=new Date(Date.now()+120_000).toUTCString();
+  const browser=setup(async()=>new Response(String(++calls),{headers:{expires}}));
+  assert.equal(await (await browser.fetch(endpoint)).text(),'1');
+  assert.equal(await (await browser.fetch(endpoint)).text(),'1');
+  assert.equal(calls,1);
+});
