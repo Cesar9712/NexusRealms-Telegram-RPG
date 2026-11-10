@@ -3,8 +3,8 @@ name: CI
 on:
   push:
     branches: [main, bootstrap/rpg-platform, audit/aaa-hardening-20260908]
+  # Validate stacked maintenance PRs as well as PRs targeting main.
   pull_request:
-    branches: [main]
 
 permissions:
   contents: read
