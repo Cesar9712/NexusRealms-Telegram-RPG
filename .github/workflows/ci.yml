@@ -9,6 +9,11 @@ on:
 permissions:
   contents: read
 
+# Avoid running obsolete validations when a PR receives another commit.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
     runs-on: ubuntu-latest
