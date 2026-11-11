@@ -5,6 +5,8 @@ on:
     branches: [main, bootstrap/rpg-platform, audit/aaa-hardening-20260908]
   # Validate stacked maintenance PRs as well as PRs targeting main.
   pull_request:
+  # Permit maintainers to validate a maintenance branch on demand.
+  workflow_dispatch:
 
 permissions:
   contents: read
