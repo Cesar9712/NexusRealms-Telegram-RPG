@@ -27,4 +27,4 @@ GitHub Actions boots PostgreSQL 17, applies every migration, executes realm-pers
 
 See `ARCHITECTURE.md`, `GAME_DESIGN.md`, `DATABASE.md`, `SECURITY.md`, `TESTING.md`, `DEPLOYMENT.md`, `TELEGRAM_SETUP.md`, `ADMIN.md`, `ECONOMY.md` and `ROADMAP.md`.
 
-Development remains isolated on `bootstrap/rpg-platform` and PR #1 until validation is green and production credentials exist.
+Development changes are reviewed in dedicated branches and pull requests. Do not merge into `main` until the relevant checks pass and production deployment prerequisites are verified. Passing CI alone does not establish production readiness.
