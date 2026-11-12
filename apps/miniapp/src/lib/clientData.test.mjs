@@ -539,7 +539,7 @@ test('future Expires response remains eligible for local caching',async()=>{
 
 
 test('Vary Cookie responses are never reused across implicit cookie changes',async()=>{
-  for(const vary of ['Cookie','Accept-Language, COOKIE']){
+  for(const vary of ['Cookie','Accept-Language, COOKIE','accept-language,  cOoKiE  ']){
     let calls=0;
     const browser=setup(async()=>new Response(String(++calls),{headers:{vary,'cache-control':'public, max-age=60'}}));
     assert.equal(await (await browser.fetch(endpoint)).text(),'1');
