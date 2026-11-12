@@ -547,3 +547,20 @@ test('Vary Cookie responses are never reused across implicit cookie changes',asy
     assert.equal(calls,2,vary);
   }
 });
+
+test('concurrent anonymous GETs with browser-managed cookies never share a response',async()=>{
+  let calls=0;
+  let cookie='A';
+  const browser=setup(async()=>{
+    const identity=cookie;
+    calls++;
+    await new Promise(resolve=>setTimeout(resolve,5));
+    return new Response(identity,{headers:{Vary:'Cookie'}});
+  });
+  const first=browser.fetch(endpoint);
+  cookie='B';
+  const second=browser.fetch(endpoint);
+  assert.deepEqual([await (await first).text(),await (await second).text()],['A','B']);
+  assert.equal(calls,2);
+});
+
