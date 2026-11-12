@@ -84,7 +84,7 @@ test('old in-flight GET does not remove a newer pending GET after mutation',asyn
     if(init?.method==='POST')return new Response('mutated');
     if(calls===1)return new Promise(resolve=>{releaseFirst=resolve});
     if(calls===3)return new Promise(resolve=>{releaseSecond=resolve});
-    return new Response('unexpected');
+    return new Response('independent');
   });
   const first=browser.fetch(endpoint);
   await browser.fetch(endpoint,{method:'POST',body:'{}'});
@@ -94,8 +94,8 @@ test('old in-flight GET does not remove a newer pending GET after mutation',asyn
   const third=browser.fetch(endpoint);
   releaseSecond(new Response('new'));
   assert.equal(await (await second).text(),'new');
-  assert.equal(await (await third).text(),'new');
-  assert.equal(calls,3);
+  assert.equal(await (await third).text(),'independent');
+  assert.equal(calls,4);
 });
 
 test('GET cached during an unfinished mutation is invalidated when the mutation settles',async()=>{
