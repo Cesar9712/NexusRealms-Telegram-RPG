@@ -94,7 +94,12 @@ export function installFastFetchCache(){
     // Fetch cancellation and all explicit cache policies must retain native semantics.
     // Request objects always carry a signal, so do not coalesce or cache them.
     // Requests with explicit credential modes may vary by cookie jar/session.
-    if(method==='GET'&&(signal||init?.credentials!==undefined||cacheMode!==undefined))return nativeFetch(input,init);
+    // Browser-managed cookies are not visible in requestHeaders(). Anonymous GETs
+    // can therefore have identical keys while carrying different cookie identities.
+    // Preserve native fetch semantics instead of coalescing or caching these reads.
+    const hasAuthorization=new Headers(input instanceof Request?input.headers:undefined);
+    if(init?.headers)new Headers(init.headers).forEach((value,name)=>hasAuthorization.set(name,value));
+    if(method==='GET'&&(signal||init?.credentials!==undefined||cacheMode!==undefined||!hasAuthorization.has('authorization')))return nativeFetch(input,init);
 
     if(method!=='GET'){
       // Reads can become stale both when a mutation starts and when it settles.
