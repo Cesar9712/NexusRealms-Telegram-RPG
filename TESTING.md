@@ -33,3 +33,7 @@ Copy this into the release PR and fill it with observed results before requestin
 | Rollback owner, previous deploy SHA and rollback procedure | NOT RUN |
 
 For each failed check, link the relevant logs or issue without including tokens, `initData`, personal information or production secrets. Keep production promotion blocked until failures are resolved and a rollback procedure has been verified in the target environment.
+
+## Client cache isolation regression (manual, non-production)
+
+Use two test sessions with different browser-managed cookies against a test endpoint that responds with `Vary: Cookie`. Confirm that the second session never receives the first session's cached body, even when the URL and explicit request headers are identical. Repeat with `Vary: Accept-Language, COOKIE` to cover case-insensitive comma-separated tokens. Verify ordinary cacheable public responses still behave as expected, and record the request/response headers with credentials and cookie values redacted. This is a release verification scenario, **not** evidence that PR #22 passed CI; keep that PR in draft until its CI is independently verified.
