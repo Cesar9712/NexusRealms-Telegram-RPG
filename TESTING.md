@@ -17,3 +17,19 @@ Before any production promotion, verify in a non-production environment:
 - Bot webhook and worker behavior are checked with test credentials; production tokens and customer data are not required for this checklist.
 
 Record the tested commit, environment, date and observed results in the PR. These are **manual checks to perform**, not claims that a deployment or smoke test has passed. Do not enable Web3 or real-money withdrawals as part of verification.
+
+## Release evidence template
+
+Copy this into the release PR and fill it with observed results before requesting promotion. A blank field or `NOT RUN` is **not** a pass.
+
+| Field | Recorded value |
+| --- | --- |
+| Commit SHA / environment / UTC date | NOT RUN |
+| PostgreSQL migrations and API `/health` | NOT RUN |
+| Telegram auth (valid / tampered / expired) | NOT RUN |
+| Character persistence and cross-account isolation | NOT RUN |
+| Duplicate reward / purchase / combat requests | NOT RUN |
+| Mini App API origin and bot / worker smoke | NOT RUN |
+| Rollback owner, previous deploy SHA and rollback procedure | NOT RUN |
+
+For each failed check, link the relevant logs or issue without including tokens, `initData`, personal information or production secrets. Keep production promotion blocked until failures are resolved and a rollback procedure has been verified in the target environment.
