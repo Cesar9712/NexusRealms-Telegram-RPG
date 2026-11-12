@@ -563,3 +563,19 @@ test('concurrent GETs with explicit credential modes retain independent cookie r
   assert.equal(calls,2);
 });
 
+
+test('concurrent implicit-cookie GETs do not share a pending response',async()=>{
+  let cookie='account-A',calls=0;
+  const releases=[];
+  const browser=setup(()=>{
+    calls++;
+    const identity=cookie;
+    return new Promise(resolve=>releases.push(()=>resolve(new Response(identity,{headers:{Vary:'Cookie'}}))));
+  });
+  const first=browser.fetch(endpoint);
+  cookie='account-B';
+  const second=browser.fetch(endpoint);
+  assert.equal(calls,2);
+  releases.forEach(release=>release());
+  assert.deepEqual([await (await first).text(),await (await second).text()],['account-A','account-B']);
+});
