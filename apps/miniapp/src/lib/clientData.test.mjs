@@ -84,7 +84,7 @@ test('old in-flight GET does not remove a newer pending GET after mutation',asyn
     if(init?.method==='POST')return new Response('mutated');
     if(calls===1)return new Promise(resolve=>{releaseFirst=resolve});
     if(calls===3)return new Promise(resolve=>{releaseSecond=resolve});
-    return new Response('unexpected');
+    return new Response('independent');
   });
   const first=browser.fetch(endpoint);
   await browser.fetch(endpoint,{method:'POST',body:'{}'});
@@ -94,8 +94,8 @@ test('old in-flight GET does not remove a newer pending GET after mutation',asyn
   const third=browser.fetch(endpoint);
   releaseSecond(new Response('new'));
   assert.equal(await (await second).text(),'new');
-  assert.equal(await (await third).text(),'new');
-  assert.equal(calls,3);
+  assert.equal(await (await third).text(),'independent');
+  assert.equal(calls,4);
 });
 
 test('GET cached during an unfinished mutation is invalidated when the mutation settles',async()=>{
@@ -546,4 +546,36 @@ test('Vary Cookie responses are never reused across implicit cookie changes',asy
     assert.equal(await (await browser.fetch(endpoint)).text(),'2');
     assert.equal(calls,2,vary);
   }
+});
+
+test('concurrent GETs with explicit credential modes retain independent cookie responses',async()=>{
+  let calls=0;
+  const browser=setup(async(_input,init)=>{
+    calls++;
+    await new Promise(resolve=>setTimeout(resolve,5));
+    return new Response(init.credentials,{headers:{Vary:'Cookie'}});
+  });
+  const [first,second]=await Promise.all([
+    browser.fetch(endpoint,{credentials:'include'}),
+    browser.fetch(endpoint,{credentials:'omit'})
+  ]);
+  assert.deepEqual([await first.text(),await second.text()],['include','omit']);
+  assert.equal(calls,2);
+});
+
+
+test('concurrent implicit-cookie GETs do not share a pending response',async()=>{
+  let cookie='account-A',calls=0;
+  const releases=[];
+  const browser=setup(()=>{
+    calls++;
+    const identity=cookie;
+    return new Promise(resolve=>releases.push(()=>resolve(new Response(identity,{headers:{Vary:'Cookie'}}))));
+  });
+  const first=browser.fetch(endpoint);
+  cookie='account-B';
+  const second=browser.fetch(endpoint);
+  assert.equal(calls,2);
+  releases.forEach(release=>release());
+  assert.deepEqual([await (await first).text(),await (await second).text()],['account-A','account-B']);
 });
