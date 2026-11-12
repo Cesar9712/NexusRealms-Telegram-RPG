@@ -120,7 +120,11 @@ export function installFastFetchCache(){
     const hit=responseCache.get(key);
     if(hit&&hit.expires>Date.now())return payloadToResponse(hit);
     if(hit)responseCache.delete(key);
-    let wait=pending.get(key);
+    // Implicit browser cookies are invisible to requestHeaders(). Two callers can
+    // have different cookie identities while an earlier GET remains in flight.
+    // Avoid sharing an in-flight response before its Vary header is known.
+    // Completed responses still follow the existing responseCache policy.
+    let wait:Promise<Payload>|undefined;
     if(!wait){
       const epoch=cacheEpoch;
       network(1);
