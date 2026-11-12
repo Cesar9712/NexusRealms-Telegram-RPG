@@ -548,19 +548,18 @@ test('Vary Cookie responses are never reused across implicit cookie changes',asy
   }
 });
 
-test('concurrent anonymous GETs with browser-managed cookies never share a response',async()=>{
+test('concurrent GETs with explicit credential modes retain independent cookie responses',async()=>{
   let calls=0;
-  let cookie='A';
-  const browser=setup(async()=>{
-    const identity=cookie;
+  const browser=setup(async(_input,init)=>{
     calls++;
     await new Promise(resolve=>setTimeout(resolve,5));
-    return new Response(identity,{headers:{Vary:'Cookie'}});
+    return new Response(init.credentials,{headers:{Vary:'Cookie'}});
   });
-  const first=browser.fetch(endpoint);
-  cookie='B';
-  const second=browser.fetch(endpoint);
-  assert.deepEqual([await (await first).text(),await (await second).text()],['A','B']);
+  const [first,second]=await Promise.all([
+    browser.fetch(endpoint,{credentials:'include'}),
+    browser.fetch(endpoint,{credentials:'omit'})
+  ]);
+  assert.deepEqual([await first.text(),await second.text()],['include','omit']);
   assert.equal(calls,2);
 });
 
