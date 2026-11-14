@@ -25,3 +25,21 @@ Scope: validate the implicit-cookie concurrent GET fix in PR #29 with **two real
 - Record sanitized screenshots and request/response status codes only. Never include tokens, cookies, personal data, wallet addresses, or full authenticated payloads in an issue or PR.
 - Mark the manual validation **not run** until two real browser profiles have been exercised. Passing simulated-cookie unit tests is not equivalent to passing this checklist.
 - Rollback: close the stacked QA PR without merging; it adds only this document.
+
+## Cache-test controls and result record
+
+- Separate browser profiles do **not** share the same in-memory JavaScript cache. They establish account baselines; the same-profile sign-out/sign-in transition in step 4 is essential for detecting stale in-process data.
+- Disabling cache in DevTools affects the browser HTTP cache, **not** necessarily the Mini App's `responseCache` or `pending` map. Run steps 4–5 both with in-app navigation **without reloading** and after a full reload; do not treat a reload-only pass as proof that the in-memory cache is safe.
+- Record a separate result for each case below. Leave every entry `NOT RUN` until observed; never fill results from simulated-cookie unit tests.
+
+| Case | Result | Sanitized evidence / notes |
+| --- | --- | --- |
+| A/B separate-profile authenticated baseline | NOT RUN | — |
+| Overlapping GETs in each profile, including throttled | NOT RUN | — |
+| Same-profile A → B while old GET is pending, no reload | NOT RUN | — |
+| Same-profile B → A while old GET is pending, no reload | NOT RUN | — |
+| `Vary: Cookie` repeated GET, no reload | NOT RUN | — |
+| Repeat after reload and browser restart | NOT RUN | — |
+| Double-tap mutation: one intended effect | NOT RUN | — |
+
+Record environment, tested commit SHA, UTC timestamp, browser versions, sanitized endpoint paths, and any failures outside this table. A blocked or unobservable case is **NOT RUN**, not PASS.
