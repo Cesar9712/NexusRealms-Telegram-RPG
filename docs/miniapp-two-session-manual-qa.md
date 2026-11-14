@@ -30,6 +30,7 @@ Scope: validate the implicit-cookie concurrent GET fix in PR #29 with **two real
 
 - Separate browser profiles do **not** share the same in-memory JavaScript cache. They establish account baselines; the same-profile sign-out/sign-in transition in step 4 is essential for detecting stale in-process data.
 - Disabling cache in DevTools affects the browser HTTP cache, **not** necessarily the Mini App's `responseCache` or `pending` map. Run steps 4–5 both with in-app navigation **without reloading** and after a full reload; do not treat a reload-only pass as proof that the in-memory cache is safe.
+- **Missing-`Vary` control:** for an authenticated GET that returns identity-specific data, inspect the response headers without exposing the payload. If `Vary: Cookie` is absent, repeat A → B and B → A **within the same browser profile and without reloading**, first after a completed GET has been cached and then while a GET is pending. Confirm that neither the rendered view nor the response reused by the application belongs to the previous identity. Do not assume the pending-GET fix protects completed cached responses. If the endpoint cannot be exercised safely or its cache behavior cannot be observed, record `NOT RUN`, not PASS.
 - Record a separate result for each case below. Leave every entry `NOT RUN` until observed; never fill results from simulated-cookie unit tests.
 
 | Case | Result | Sanitized evidence / notes |
@@ -39,6 +40,8 @@ Scope: validate the implicit-cookie concurrent GET fix in PR #29 with **two real
 | Same-profile A → B while old GET is pending, no reload | NOT RUN | — |
 | Same-profile B → A while old GET is pending, no reload | NOT RUN | — |
 | `Vary: Cookie` repeated GET, no reload | NOT RUN | — |
+| Missing `Vary: Cookie`: completed GET then A → B / B → A, no reload | NOT RUN | — |
+| Missing `Vary: Cookie`: pending GET then A → B / B → A, no reload | NOT RUN | — |
 | Repeat after reload and browser restart | NOT RUN | — |
 | Double-tap mutation: one intended effect | NOT RUN | — |
 
