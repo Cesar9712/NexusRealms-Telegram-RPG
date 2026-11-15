@@ -579,3 +579,12 @@ test('concurrent implicit-cookie GETs do not share a pending response',async()=>
   releases.forEach(release=>release());
   assert.deepEqual([await (await first).text(),await (await second).text()],['account-A','account-B']);
 });
+
+
+test('Set-Cookie responses are not stored in the completed GET cache',async()=>{
+  let calls=0;
+  const browser=setup(async()=>new Response(String(++calls),{headers:{'set-cookie':'session=rotated; HttpOnly; Secure','cache-control':'public, max-age=60'}}));
+  assert.equal(await (await browser.fetch(endpoint)).text(),'1');
+  assert.equal(await (await browser.fetch(endpoint)).text(),'2');
+  assert.equal(calls,2);
+});
