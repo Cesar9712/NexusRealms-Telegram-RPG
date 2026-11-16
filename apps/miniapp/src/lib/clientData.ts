@@ -52,6 +52,10 @@ function mutationKey(input:RequestInfo|URL,init:RequestInit|undefined,method:str
   // Abortable mutations must not share a network request: one caller may cancel independently.
   // Explicit credential modes may use different cookies; never coalesce their mutations.
   if(init?.signal||input instanceof Request||init?.credentials!==undefined)return null;
+  // Implicit HttpOnly cookies cannot be inspected by JavaScript. Without an
+  // explicit Authorization identity, two identical writes may belong to
+  // different browser sessions; never deduplicate them.
+  if(!new Headers(JSON.parse(headers)).has('authorization'))return null;
   if(init?.body!=null&&typeof init.body!=='string')return null;
   return JSON.stringify([method,url,headers,init?.body??'']);
 }

@@ -588,3 +588,20 @@ test('Set-Cookie responses are not stored in the completed GET cache',async()=>{
   assert.equal(await (await browser.fetch(endpoint)).text(),'2');
   assert.equal(calls,2);
 });
+
+
+test('identical implicit-cookie mutations remain independent across invisible cookie changes',async()=>{
+  let cookie='account-A',calls=0;
+  const releases=[];
+  const browser=setup(()=>{
+    calls++;
+    const identity=cookie;
+    return new Promise(resolve=>releases.push(()=>resolve(new Response(identity))));
+  });
+  const first=browser.fetch(endpoint,{method:'POST',body:'{"action":"collect"}'});
+  cookie='account-B';
+  const second=browser.fetch(endpoint,{method:'POST',body:'{"action":"collect"}'});
+  assert.equal(calls,2);
+  releases.forEach(release=>release());
+  assert.deepEqual([await (await first).text(),await (await second).text()],['account-A','account-B']);
+});
