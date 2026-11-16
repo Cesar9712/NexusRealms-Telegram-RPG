@@ -605,3 +605,16 @@ test('identical implicit-cookie mutations remain independent across invisible co
   releases.forEach(release=>release());
   assert.deepEqual([await (await first).text(),await (await second).text()],['account-A','account-B']);
 });
+
+
+test('completed implicit-cookie GET responses must not cross invisible HttpOnly session changes',async()=>{
+  let cookie='account-A',calls=0;
+  const browser=setup(async()=>{
+    calls++;
+    return new Response(cookie,{headers:{'cache-control':'public, max-age=60'}});
+  });
+  assert.equal(await (await browser.fetch(endpoint)).text(),'account-A');
+  cookie='account-B';
+  assert.equal(await (await browser.fetch(endpoint)).text(),'account-B');
+  assert.equal(calls,2);
+});
