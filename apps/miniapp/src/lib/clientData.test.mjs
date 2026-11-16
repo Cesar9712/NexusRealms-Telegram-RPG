@@ -260,10 +260,10 @@ test('prefetch stops the current batch if the session changes mid-flight',async(
 test('explicit credential modes bypass the GET cache and preserve native fetch options',async()=>{
   let calls=0;
   const browser=setup(async(_input,init)=>new Response(`${++calls}:${init?.credentials??'default'}`));
-  assert.equal(await (await browser.fetch(endpoint)).text(),'1:default');
+  assert.equal(await (await browser.fetch(endpoint,{headers:{authorization:'Bearer test'}})).text(),'1:default');
   assert.equal(await (await browser.fetch(endpoint,{credentials:'include'})).text(),'2:include');
   assert.equal(await (await browser.fetch(endpoint,{credentials:'omit'})).text(),'3:omit');
-  assert.equal(await (await browser.fetch(endpoint)).text(),'1:default');
+  assert.equal(await (await browser.fetch(endpoint,{headers:{authorization:'Bearer test'}})).text(),'1:default');
   assert.equal(calls,3);
 });
 
@@ -284,15 +284,15 @@ test('identical mutations with explicit credential modes remain independent',asy
 });
 
 
-test('cached GETs are isolated across login, account switch, and logout without explicit headers',async()=>{
+test('cached GETs are isolated across login, account switch, and logout with explicit bearer headers',async()=>{
   let session='A',calls=0;
   const browser=setup(async()=>new Response(`${session}:${++calls}`),{getSession:()=>session});
-  assert.equal(await (await browser.fetch(endpoint)).text(),'A:1');
-  assert.equal(await (await browser.fetch(endpoint)).text(),'A:1');
+  assert.equal(await (await browser.fetch(endpoint,{headers:{authorization:`Bearer ${session}`}})).text(),'A:1');
+  assert.equal(await (await browser.fetch(endpoint,{headers:{authorization:`Bearer ${session}`}})).text(),'A:1');
   session='B';
-  assert.equal(await (await browser.fetch(endpoint)).text(),'B:2');
+  assert.equal(await (await browser.fetch(endpoint,{headers:{authorization:`Bearer ${session}`}})).text(),'B:2');
   session=null;
-  assert.equal(await (await browser.fetch(endpoint)).text(),'null:3');
+  assert.equal(await (await browser.fetch(endpoint,{headers:{authorization:`Bearer ${session}`}})).text(),'null:3');
   assert.equal(calls,3);
 });
 
@@ -303,13 +303,13 @@ test('an in-flight GET from an old session cannot populate the new session cache
     if(calls===1)return new Promise(resolve=>{releaseOld=resolve});
     return new Response('new-session');
   },{getSession:()=>session});
-  const old=browser.fetch(endpoint);
+  const old=browser.fetch(endpoint,{headers:{authorization:`Bearer ${session}`}});
   session='B';
-  const fresh=browser.fetch(endpoint);
+  const fresh=browser.fetch(endpoint,{headers:{authorization:`Bearer ${session}`}});
   releaseOld(new Response('old-session'));
   assert.equal(await (await old).text(),'old-session');
   assert.equal(await (await fresh).text(),'new-session');
-  assert.equal(await (await browser.fetch(endpoint)).text(),'new-session');
+  assert.equal(await (await browser.fetch(endpoint,{headers:{authorization:`Bearer ${session}`}})).text(),'new-session');
   assert.equal(calls,2);
 });
 
@@ -417,8 +417,8 @@ test('GET responses with max-age shorter than the local TTL are not reused',asyn
 test('GET responses with sufficient max-age may still use the local TTL',async()=>{
   let calls=0;
   const browser=setup(async()=>new Response(String(++calls),{headers:{'cache-control':'public, max-age=60'}}));
-  assert.equal(await (await browser.fetch(endpoint)).text(),'1');
-  assert.equal(await (await browser.fetch(endpoint)).text(),'1');
+  assert.equal(await (await browser.fetch(endpoint,{headers:{authorization:'Bearer test'}})).text(),'1');
+  assert.equal(await (await browser.fetch(endpoint,{headers:{authorization:'Bearer test'}})).text(),'1');
   assert.equal(calls,1);
 });
 
@@ -438,8 +438,8 @@ test('Age zero preserves eligible local caching while invalid negative Age bypas
   for(const [age,expectedCalls] of [['0',1],[' 0 ',1],['-1',2]]){
     let calls=0;
     const browser=setup(async()=>new Response(String(++calls),{headers:{'cache-control':'public, max-age=60',age}}));
-    assert.equal(await (await browser.fetch(endpoint)).text(),'1');
-    assert.equal(await (await browser.fetch(endpoint)).text(),String(expectedCalls));
+    assert.equal(await (await browser.fetch(endpoint,{headers:{authorization:'Bearer test'}})).text(),'1');
+    assert.equal(await (await browser.fetch(endpoint,{headers:{authorization:'Bearer test'}})).text(),String(expectedCalls));
     assert.equal(calls,expectedCalls);
   }
 });
@@ -473,15 +473,15 @@ test('unbalanced max-age quotes cannot grant local freshness',async()=>{
   for(const directive of ['max-age="60','max-age=60"','public, max-age="600','public, max-age=600"']){
     let calls=0;
     const browser=setup(async()=>new Response(String(++calls),{headers:{'cache-control':directive}}));
-    assert.equal(await (await browser.fetch(endpoint)).text(),'1');
-    assert.equal(await (await browser.fetch(endpoint)).text(),'2');
+    assert.equal(await (await browser.fetch(endpoint,{headers:{authorization:'Bearer test'}})).text(),'1');
+    assert.equal(await (await browser.fetch(endpoint,{headers:{authorization:'Bearer test'}})).text(),'2');
     assert.equal(calls,2,directive);
   }
   for(const directive of ['max-age=60','max-age="60"']){
     let calls=0;
     const browser=setup(async()=>new Response(String(++calls),{headers:{'cache-control':directive}}));
-    assert.equal(await (await browser.fetch(endpoint)).text(),'1');
-    assert.equal(await (await browser.fetch(endpoint)).text(),'1');
+    assert.equal(await (await browser.fetch(endpoint,{headers:{authorization:'Bearer test'}})).text(),'1');
+    assert.equal(await (await browser.fetch(endpoint,{headers:{authorization:'Bearer test'}})).text(),'1');
     assert.equal(calls,1,directive);
   }
 });
@@ -509,8 +509,8 @@ test('Vary star responses are not reused from the local GET cache',async()=>{
 test('ordinary Vary responses retain caching when request headers match',async()=>{
   let calls=0;
   const browser=setup(async()=>new Response(String(++calls),{headers:{vary:'Accept-Language','cache-control':'public, max-age=60'}}));
-  assert.equal(await (await browser.fetch(endpoint,{headers:{'Accept-Language':'es'}})).text(),'1');
-  assert.equal(await (await browser.fetch(endpoint,{headers:{'Accept-Language':'es'}})).text(),'1');
+  assert.equal(await (await browser.fetch(endpoint,{headers:{'Accept-Language':'es',authorization:'Bearer test'}})).text(),'1');
+  assert.equal(await (await browser.fetch(endpoint,{headers:{'Accept-Language':'es',authorization:'Bearer test'}})).text(),'1');
   assert.equal(calls,1);
 });
 
@@ -532,8 +532,8 @@ test('future Expires response remains eligible for local caching',async()=>{
   let calls=0;
   const expires=new Date(Date.now()+120_000).toUTCString();
   const browser=setup(async()=>new Response(String(++calls),{headers:{expires}}));
-  assert.equal(await (await browser.fetch(endpoint)).text(),'1');
-  assert.equal(await (await browser.fetch(endpoint)).text(),'1');
+  assert.equal(await (await browser.fetch(endpoint,{headers:{authorization:'Bearer test'}})).text(),'1');
+  assert.equal(await (await browser.fetch(endpoint,{headers:{authorization:'Bearer test'}})).text(),'1');
   assert.equal(calls,1);
 });
 
