@@ -127,7 +127,8 @@ export function installFastFetchCache(){
     // Implicit browser cookies are invisible to requestHeaders(). Two callers can
     // have different cookie identities while an earlier GET remains in flight.
     // Avoid sharing an in-flight response before its Vary header is known.
-    // Only explicitly authorized reads may populate the completed-response cache.\n    // Implicit HttpOnly cookies can rotate without any observable JS state.
+    // Only explicitly authorized reads may populate the completed-response cache.
+    // Implicit HttpOnly cookies can rotate without any observable JS state.
     let wait:Promise<Payload>|undefined;
     if(!wait){
       const epoch=cacheEpoch;
