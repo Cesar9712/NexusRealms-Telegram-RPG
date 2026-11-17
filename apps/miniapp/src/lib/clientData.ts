@@ -127,7 +127,8 @@ export function installFastFetchCache(){
     // Implicit browser cookies are invisible to requestHeaders(). Two callers can
     // have different cookie identities while an earlier GET remains in flight.
     // Avoid sharing an in-flight response before its Vary header is known.
-    // Completed responses still follow the existing responseCache policy.
+    // Only explicitly authorized reads may populate the completed-response cache.
+    // Implicit HttpOnly cookies can rotate without any observable JS state.
     let wait:Promise<Payload>|undefined;
     if(!wait){
       const epoch=cacheEpoch;
@@ -135,7 +136,7 @@ export function installFastFetchCache(){
       wait=nativeFetch(input,{...init,cache:'no-store'}).then(async r=>{
         const payload=await toPayload(r,TTL);
         // A 206 is a successful but incomplete representation; never reuse it for a full GET.
-        if(r.status===200&&!r.headers.has('set-cookie')&&!r.headers.get('vary')?.split(',').some(value=>['*','cookie'].includes(value.trim().toLowerCase()))&&allowsLocalTtl(r.headers.get('cache-control')??'',r.headers.get('age'),r.headers.get('expires'))&&epoch===cacheEpoch)responseCache.set(key,payload);
+        if(new Headers(JSON.parse(headers)).has('authorization')&&r.status===200&&!r.headers.has('set-cookie')&&!r.headers.get('vary')?.split(',').some(value=>['*','cookie'].includes(value.trim().toLowerCase()))&&allowsLocalTtl(r.headers.get('cache-control')??'',r.headers.get('age'),r.headers.get('expires'))&&epoch===cacheEpoch)responseCache.set(key,payload);
         return payload;
       }).finally(()=>{if(pending.get(key)===wait)pending.delete(key);network(-1)});
       pending.set(key,wait);
