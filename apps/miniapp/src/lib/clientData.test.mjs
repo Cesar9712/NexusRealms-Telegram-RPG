@@ -618,3 +618,25 @@ test('completed implicit-cookie GET responses must not cross invisible HttpOnly 
   assert.equal(await (await browser.fetch(endpoint)).text(),'account-B');
   assert.equal(calls,2);
 });
+
+
+test('concurrent implicit-cookie GETs remain isolated without Vary or Set-Cookie',async()=>{
+  let cookie='account-A',calls=0;
+  const releases=[];
+  const browser=setup(()=>{
+    calls++;
+    const identity=cookie;
+    return new Promise(resolve=>releases.push(()=>resolve(new Response(identity,{
+      headers:{'cache-control':'public, max-age=60'}
+    }))));
+  });
+  const first=browser.fetch(endpoint);
+  cookie='account-B';
+  const second=browser.fetch(endpoint);
+  assert.equal(calls,2,'in-flight requests must not share a response across invisible cookie changes');
+  releases.forEach(release=>release());
+  assert.deepEqual([await (await first).text(),await (await second).text()],['account-A','account-B']);
+  cookie='account-C';
+  assert.equal(await (await browser.fetch(endpoint)).text(),'account-C');
+  assert.equal(calls,3,'completed responses must not leak across cookie changes');
+});
