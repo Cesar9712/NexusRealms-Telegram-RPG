@@ -1,6 +1,6 @@
 # Implicit-cookie GET cache release gate
 
-Status: **blocked** until the regression in `apps/miniapp/src/lib/clientData.test.mjs` passes.
+Status (2026-11-16): **automated CI passed; manual browser isolation remains unverified**. The regression fix at `26cb99d39b1bee3166c4831b574e13a16b246f63` passed [CI run 43967480516](https://github.com/Cesar9712/NexusRealms-Telegram-RPG/actions/runs/43967480516), including PostgreSQL schema/regressions, migration idempotency, typecheck, tests, build and critical dependency audit. This does **not** establish real-browser isolation. Keep PR #33 in draft until the two-profile checks below are executed and recorded.
 
 ## Reproduction
 
