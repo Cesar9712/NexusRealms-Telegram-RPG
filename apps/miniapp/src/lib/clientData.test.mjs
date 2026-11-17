@@ -637,6 +637,9 @@ test('concurrent implicit-cookie GETs remain isolated without Vary or Set-Cookie
   releases.forEach(release=>release());
   assert.deepEqual([await (await first).text(),await (await second).text()],['account-A','account-B']);
   cookie='account-C';
-  assert.equal(await (await browser.fetch(endpoint)).text(),'account-C');
+  const third=browser.fetch(endpoint);
+  assert.equal(calls,3);
+  releases[2]();
+  assert.equal(await (await third).text(),'account-C');
   assert.equal(calls,3,'completed responses must not leak across cookie changes');
 });
