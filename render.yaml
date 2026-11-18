@@ -5,7 +5,7 @@ services:
     runtime: node
     plan: free
     branch: main
-    buildCommand: pnpm install --no-frozen-lockfile && pnpm --filter @nexusrealms/api build
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @nexusrealms/api build
     startCommand: pnpm --filter @nexusrealms/api migrate && pnpm --filter @nexusrealms/api start
     healthCheckPath: /health
     envVars:
@@ -30,7 +30,7 @@ services:
     runtime: node
     plan: free
     branch: main
-    buildCommand: pnpm install --no-frozen-lockfile && pnpm --filter @nexusrealms/miniapp build
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @nexusrealms/miniapp build
     startCommand: pnpm --filter @nexusrealms/miniapp start
     envVars:
       - key: NODE_VERSION
@@ -46,7 +46,7 @@ services:
     runtime: node
     plan: free
     branch: main
-    buildCommand: pnpm install --no-frozen-lockfile && pnpm --filter @nexusrealms/api build && pnpm --filter @nexusrealms/worker build
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @nexusrealms/api build && pnpm --filter @nexusrealms/worker build
     startCommand: pnpm --filter @nexusrealms/api migrate && pnpm --filter @nexusrealms/worker start
     healthCheckPath: /health
     envVars:
@@ -70,7 +70,7 @@ services:
     runtime: node
     plan: free
     branch: main
-    buildCommand: pnpm install --no-frozen-lockfile && pnpm --filter @nexusrealms/bot build
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @nexusrealms/bot build
     startCommand: pnpm --filter @nexusrealms/bot start
     healthCheckPath: /health
     envVars:

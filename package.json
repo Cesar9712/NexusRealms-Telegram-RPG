@@ -6,6 +6,12 @@
   "engines": {
     "node": ">=20"
   },
+  "pnpm": {
+    "overrides": {
+      "next>postcss": "^8.5.23",
+      "next>sharp": "^0.35.5"
+    }
+  },
   "scripts": {
     "dev:bot": "pnpm --filter @nexusrealms/bot dev",
     "dev:api": "pnpm --filter @nexusrealms/api dev",
