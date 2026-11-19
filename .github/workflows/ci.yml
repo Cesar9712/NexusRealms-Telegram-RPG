@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, bootstrap/rpg-platform, audit/aaa-hardening-20260908]
   pull_request:
-    branches: [main]
+    branches: [main, maintenance/dependency-security-20261102]
 
 permissions:
   contents: read
