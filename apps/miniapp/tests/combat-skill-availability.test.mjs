@@ -7,7 +7,9 @@ import { readFileSync } from 'node:fs';
 const source = readFileSync(new URL('../src/components/CombatPanel.tsx', import.meta.url), 'utf8');
 const skillMapStart = source.indexOf('usable.map((skill:any)=>');
 assert.notEqual(skillMapStart, -1, 'combat skill rendering exists');
-const skillButton = source.slice(skillMapStart);
+const skillMapEnd = source.indexOf('})}</div><div className="combat-turn-info">', skillMapStart);
+assert.notEqual(skillMapEnd, -1, 'combat skill rendering closes before turn information');
+const skillButton = source.slice(skillMapStart, skillMapEnd);
 
 test('skills remain disabled when cooling down or lacking mana', () => {
   assert.match(skillButton, /unavailable=cd>0\|\|lockedMp/);
