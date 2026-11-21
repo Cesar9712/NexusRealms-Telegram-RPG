@@ -5,8 +5,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const source = readFileSync(new URL('../src/components/CombatPanel.tsx', import.meta.url), 'utf8');
-const skillButton = source.slice(source.indexOf('usable.map((skill:any)=>'));
-assert.ok(skillButton.length > 100, 'combat skill rendering exists');
+const skillMapStart = source.indexOf('usable.map((skill:any)=>');
+assert.notEqual(skillMapStart, -1, 'combat skill rendering exists');
+const skillButton = source.slice(skillMapStart);
 
 test('skills remain disabled when cooling down or lacking mana', () => {
   assert.match(skillButton, /unavailable=cd>0\|\|lockedMp/);
