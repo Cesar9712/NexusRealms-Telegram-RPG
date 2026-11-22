@@ -27,3 +27,13 @@ test('disabled skills expose a readable reason and the remaining cost', () => {
 test('available skills still invoke their action', () => {
   assert.match(skillButton, /onClick=\{\(\)=>act\(skill\)\}/);
 });
+
+test('basic attack and skill reload cannot be triggered during an in-flight action', () => {
+  assert.match(source, /className="skill-button basic" disabled=\{busy\} onClick=\{\(\)=>act\(\)\}/);
+  assert.match(source, /className="combat-skills-retry" disabled=\{busy\} onClick=\{loadSkills\}/);
+});
+
+test('cooldown and mana badges only appear under their respective conditions', () => {
+  assert.match(skillButton, /\{cd>0&&<em>\{cd\}<\/em>\}/);
+  assert.match(skillButton, /\{lockedMp&&cd===0&&<em>MP<\/em>\}/);
+});
