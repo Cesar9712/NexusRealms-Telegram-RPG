@@ -50,3 +50,10 @@ test('action retries reuse a single idempotency key', () => {
   assert.match(source, /for\(let attempt=0;attempt<2;attempt\+\+\)/);
   assert.match(source, /headers:action\(key\)/);
 });
+
+test('successful combat actions survive a failed history refresh', () => {
+  assert.match(source, /setState\(\(old:any\)=>\(\{\.\.\.old,\.\.\.response,resumed:false\}\)\)/);
+  assert.match(source, /let logUnavailable=false;try\{const log=await get/);
+  assert.match(source, /catch\{logUnavailable=true;\}/);
+  assert.match(source, /text:logUnavailable\?'Acción ejecutada\./);
+});
