@@ -37,3 +37,16 @@ test('cooldown and mana badges only appear under their respective conditions', (
   assert.match(skillButton, /\{cd>0&&<em>\{cd\}<\/em>\}/);
   assert.match(skillButton, /\{lockedMp&&cd===0&&<em>MP<\/em>\}/);
 });
+
+test('action handler rejects duplicate submissions and invalid cooldown or mana before posting', () => {
+  assert.match(source, /if\(!combat\?\.id\|\|busy\)return/);
+  assert.match(source, /if\(skillId&&cd>0\)\{/);
+  assert.match(source, /if\(skillId&&num\(combat\.player_mp\)<mp\)\{/);
+  assert.match(source, /await post\(`\/v1\/combat\/\$\{combat\.id\}\/action`,skillId\?\{skillId\}:\{\}\)/);
+});
+
+test('action retries reuse a single idempotency key', () => {
+  assert.match(source, /async function post\(path:string,body:Record<string,unknown>=\{\}\)\{const key=requestKey\(\)/);
+  assert.match(source, /for\(let attempt=0;attempt<2;attempt\+\+\)/);
+  assert.match(source, /headers:action\(key\)/);
+});
