@@ -44,3 +44,13 @@ test('combat POST retains one idempotency key across retry attempts', () => {
   assert.match(helper, /headers:action\(key\)/);
   assert.match(helper, /if\(e\?\.server\)throw e/);
 });
+
+test('failed active-combat lookup blocks starting a second encounter and offers retry', () => {
+  const lookup = source.slice(source.indexOf('async function loadActiveCombat()'), source.indexOf('useEffect('));
+  assert.match(lookup, /setActiveCheckFailed\(true\)/);
+  assert.match(lookup, /setActiveCheckFailed\(false\)/);
+  const ui = source.slice(source.indexOf('if(!visible)return null;'));
+  assert.match(ui, /:activeCheckFailed\?<div/);
+  assert.match(ui, /onClick=\{\(\)=>void loadActiveCombat\(\)\}/);
+  assert.ok(ui.indexOf(':activeCheckFailed?<div') < ui.indexOf(':!combat?<div'), 'failure gate precedes start controls');
+});
