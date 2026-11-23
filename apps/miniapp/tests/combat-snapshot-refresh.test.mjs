@@ -54,3 +54,16 @@ test('failed active-combat lookup blocks starting a second encounter and offers 
   assert.match(ui, /onClick=\{\(\)=>void loadActiveCombat\(\)\}/);
   assert.ok(ui.indexOf(':activeCheckFailed?<div') < ui.indexOf(':!combat?<div'), 'failure gate precedes start controls');
 });
+
+
+test('successful lookup alone clears the active-combat failure gate', () => {
+  const start = source.indexOf('async function loadActiveCombat()');
+  const end = source.indexOf('useEffect(', start);
+  assert.ok(start >= 0 && end > start, 'active combat lookup is present');
+  const lookup = source.slice(start, end);
+  const catchStart = lookup.indexOf('}catch(');
+  assert.ok(catchStart > 0, 'lookup has an error handler');
+  assert.match(lookup.slice(0, catchStart), /setActiveCheckFailed\(false\)/);
+  assert.doesNotMatch(lookup.slice(catchStart), /setActiveCheckFailed\(false\)/);
+  assert.match(lookup.slice(catchStart), /setActiveCheckFailed\(true\)/);
+});
