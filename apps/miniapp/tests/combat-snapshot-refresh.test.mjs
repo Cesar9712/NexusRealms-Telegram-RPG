@@ -23,3 +23,13 @@ test('start and abandon still request a best-effort snapshot update', () => {
   assert.match(start, /await refreshSnapshot\(\)/);
   assert.match(abandon, /await refreshSnapshot\(\)/);
 });
+
+test('terminal combat actions refresh snapshot without discarding the accepted action', () => {
+  const actStart = source.indexOf('async function act(');
+  const actEnd = source.indexOf('if(!visible)return null;', actStart);
+  assert.ok(actStart >= 0 && actEnd > actStart, 'combat action handler is present');
+  const handler = source.slice(actStart, actEnd);
+  assert.match(handler, /const response=await post\(/);
+  assert.match(handler, /setState\(\(old:any\)=>\(\{\.\.\.old,\.\.\.response,resumed:false\}\)\)/);
+  assert.match(handler, /if\(response\.combat\?\.state!=='active'\)await refreshSnapshot\(\)/);
+});
