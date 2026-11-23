@@ -33,3 +33,14 @@ test('terminal combat actions refresh snapshot without discarding the accepted a
   assert.match(handler, /setState\(\(old:any\)=>\(\{\.\.\.old,\.\.\.response,resumed:false\}\)\)/);
   assert.match(handler, /if\(response\.combat\?\.state!=='active'\)await refreshSnapshot\(\)/);
 });
+
+
+test('combat POST retains one idempotency key across retry attempts', () => {
+  const start = source.indexOf('async function post(');
+  const end = source.indexOf('async function refreshSnapshot()', start);
+  assert.ok(start >= 0 && end > start, 'combat POST helper is present');
+  const helper = source.slice(start, end);
+  assert.match(helper, /const key=requestKey\(\);let last:unknown=null;for\(let attempt=0;attempt<2;attempt\+\+\)/);
+  assert.match(helper, /headers:action\(key\)/);
+  assert.match(helper, /if\(e\?\.server\)throw e/);
+});
