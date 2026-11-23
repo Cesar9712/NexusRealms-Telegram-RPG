@@ -24,3 +24,9 @@ test('disabled skills expose a readable reason and the remaining cost', () => {
 test('available skills still invoke their action', () => {
   assert.match(skillButton, /onClick=\{\(\)=>act\(skill\)\}/);
 });
+
+test('successful combat actions survive a history refresh failure', () => {
+  assert.match(source, /log=await get\(`\/v1\/combat\/\$\{combat\.id\}`\)/);
+  assert.match(source, /combat:log\?\.combat\?\?response\.combat\?\?old\?\.combat/);
+  assert.match(source, /if\(log\)setEvents\(log\.events\?\?\[\]\)/);
+});
